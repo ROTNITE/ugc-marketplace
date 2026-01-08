@@ -1,0 +1,679 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // Local dev expects Docker Postgres; see .env.example and README.
+}
+
+enum Role {
+  CREATOR
+  BRAND
+  ADMIN
+}
+
+enum Platform {
+  TIKTOK
+  INSTAGRAM_REELS
+  YOUTUBE_SHORTS
+  VK_CLIPS
+  OTHER
+}
+
+enum Niche {
+  BEAUTY
+  FOOD
+  FITNESS
+  GADGETS
+  GAMES
+  EDUCATION
+  FINTECH
+  APPS
+  ECOMMERCE
+  HOME
+  KIDS
+  PETS
+  TRAVEL
+  OTHER
+}
+
+enum ContentFormat {
+  REVIEW
+  UNBOXING
+  HOW_TO
+  BEFORE_AFTER
+  TESTIMONIAL
+  SKETCH
+  SCREEN_RECORDING
+  VOICE_OVER
+  TALKING_HEAD
+  NO_FACE
+  OTHER
+}
+
+enum RightsPackage {
+  BASIC
+  ADS
+  SPARK_PARTNERSHIP
+  BUYOUT
+}
+
+enum Currency {
+  RUB
+  KZT
+  UAH
+  BYN
+  USD
+  EUR
+}
+
+enum DeadlineType {
+  URGENT_48H
+  DAYS_3_5
+  WEEK_PLUS
+  DATE
+}
+
+enum MusicPolicy {
+  BRAND_SAFE
+  TREND_OK
+  NO_MUSIC
+}
+
+enum JobStatus {
+  DRAFT
+  PUBLISHED
+  PAUSED
+  IN_REVIEW
+  COMPLETED
+  CLOSED
+  CANCELED
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum EscrowStatus {
+  UNFUNDED
+  FUNDED
+  RELEASED
+  REFUNDED
+}
+
+enum LedgerEntryType {
+  ESCROW_FUNDED
+  ESCROW_RELEASED
+  ESCROW_REFUNDED
+  COMMISSION_TAKEN
+  PAYOUT_REQUESTED
+  PAYOUT_APPROVED
+  PAYOUT_REJECTED
+  MANUAL_ADJUSTMENT
+}
+
+enum PayoutRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELED
+}
+
+enum DisputeStatus {
+  OPEN
+  RESOLVED
+  CANCELED
+}
+
+enum DisputeResolution {
+  REFUND
+  RELEASE
+  NO_ACTION
+}
+
+enum DisputeReason {
+  QUALITY
+  DEADLINE
+  COMMUNICATION
+  OTHER
+}
+
+enum DisputeMessageKind {
+  MESSAGE
+  EVIDENCE_LINK
+  ADMIN_NOTE
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum DeliverableStatus {
+  SUBMITTED
+  NEEDS_CHANGES
+  APPROVED
+}
+
+enum PortfolioKind {
+  LINK
+  FILE
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  REJECTED
+  VERIFIED
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  name         String?
+  passwordHash String
+  role         Role     @default(CREATOR)
+  image        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creatorProfile CreatorProfile?
+  brandProfile   BrandProfile?
+
+  jobsCreated     Job[]         @relation("JobsCreatedByBrand")
+  activeJobs      Job[]         @relation("JobActiveCreator")
+  applications    Application[] @relation("ApplicationsByCreator")
+  messagesSent    Message[]     @relation("MessagesSentByUser")
+  conversations   ConversationParticipant[]
+  submissions     Submission[]
+  brandInvitations   Invitation[] @relation("InvitationByBrand")
+  creatorInvitations Invitation[] @relation("InvitationByCreator")
+  notifications      Notification[]
+  wallet             Wallet?
+  escrowsAsBrand      Escrow[] @relation("EscrowByBrand")
+  escrowsAsCreator    Escrow[] @relation("EscrowByCreator")
+  ledgerEntriesFrom   LedgerEntry[] @relation("LedgerFromUser")
+  ledgerEntriesTo     LedgerEntry[] @relation("LedgerToUser")
+  payoutRequests      PayoutRequest[]
+
+  reviewsWritten Review[] @relation("ReviewsWritten")
+  reviewsReceived Review[] @relation("ReviewsReceived")
+  moderatedJobs   Job[] @relation("JobsModeratedBy")
+  creatorVerificationsReviewed CreatorProfile[] @relation("CreatorVerificationsReviewed")
+  disputesOpened   Dispute[] @relation("DisputesOpened")
+  disputesResolved Dispute[] @relation("DisputesResolved")
+  disputeMessages  DisputeMessage[] @relation("DisputeMessageAuthor")
+}
+
+model CreatorProfile {
+  id        String @id @default(uuid()) @db.Uuid
+  userId    String @unique @db.Uuid
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  bio       String?
+  country   String?
+  city      String?
+  languages String[] @default([])
+  niches    Niche[]  @default([])
+  platforms Platform[] @default([])
+
+  pricePerVideo Int?
+  currency     Currency @default(RUB)
+
+  isVerified     Boolean @default(false)
+  ratingAvg      Float   @default(0)
+  jobsCompleted  Int     @default(0)
+
+  portfolioItems PortfolioItem[]
+  verificationCode String?
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  verificationReason String?
+  verifiedAt DateTime?
+  verificationReviewedAt DateTime?
+  verificationReviewedByUserId String? @db.Uuid
+  verificationReviewedByUser   User?   @relation("CreatorVerificationsReviewed", fields: [verificationReviewedByUserId], references: [id], onDelete: SetNull)
+  isPublic Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([verificationStatus])
+  @@index([verificationStatus, verificationReviewedAt])
+}
+
+model BrandProfile {
+  id        String @id @default(uuid()) @db.Uuid
+  userId    String @unique @db.Uuid
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyName String
+  website     String?
+  description String?
+  niche       Niche?
+  country     String?
+  city        String?
+
+  isVerified Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PortfolioItem {
+  id        String @id @default(uuid()) @db.Uuid
+  creatorId String @db.Uuid
+  creator   CreatorProfile @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  kind      PortfolioKind @default(LINK)
+  title     String?
+  platform  Platform?
+  url       String
+  thumbnailUrl String?
+
+  createdAt DateTime @default(now())
+}
+
+model OutboxEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  type        String
+  payload     Json
+  createdAt   DateTime @default(now())
+  processedAt DateTime?
+  error       String?
+
+  @@index([createdAt])
+  @@index([processedAt])
+  @@index([type])
+}
+
+model Notification {
+  id        String  @id @default(uuid()) @db.Uuid
+  userId    String  @db.Uuid
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String?
+  href      String?
+  isRead    Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+model PlatformSettings {
+  id              String   @id @default("singleton")
+  commissionBps   Int      @default(1500)
+  defaultCurrency Currency @default(RUB)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Wallet {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @unique @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balanceCents Int      @default(0)
+  currency     Currency @default(RUB)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Job {
+  id          String  @id @default(uuid()) @db.Uuid
+  brandId     String  @db.Uuid
+  brand       User    @relation("JobsCreatedByBrand", fields: [brandId], references: [id], onDelete: Cascade)
+  activeCreatorId String? @db.Uuid
+  activeCreator   User?   @relation("JobActiveCreator", fields: [activeCreatorId], references: [id], onDelete: SetNull)
+
+  title       String
+  description String?
+
+  platform    Platform
+  niche       Niche
+
+  deliverablesCount Int @default(1)
+  videoDurationSec  Int @default(15)
+  contentFormats    ContentFormat[] @default([])
+
+  needsPosting      Boolean @default(false)
+  needsWhitelisting Boolean @default(false)
+
+  rightsPackage RightsPackage @default(BASIC)
+  usageTermDays Int?
+  revisionRounds Int @default(1)
+  revisionRoundsIncluded Int @default(1)
+
+  languages String[] @default(["ru"])
+  shippingRequired Boolean @default(false)
+  deliverablesIncludeRaw Boolean @default(false)
+  deliverablesIncludeProjectFile Boolean @default(false)
+  subtitlesRequired Boolean @default(false)
+  musicPolicy MusicPolicy?
+  scriptProvided Boolean @default(false)
+  notes String?
+
+  budgetMin Int
+  budgetMax Int
+  currency Currency @default(RUB)
+
+  deadlineType DeadlineType @default(DATE)
+  deadlineDate DateTime?
+
+  status JobStatus @default(DRAFT)
+  moderationStatus ModerationStatus @default(PENDING)
+  moderationReason String?
+  moderatedAt DateTime?
+  moderatedByUserId String? @db.Uuid
+  moderatedByUser   User?   @relation("JobsModeratedBy", fields: [moderatedByUserId], references: [id], onDelete: SetNull)
+
+  // Flexible extension point for future filters/fields
+  brief Json?
+
+  cancelReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  applications Application[]
+  conversations Conversation[]
+  submissions Submission[]
+  invitations Invitation[]
+  deliverables Deliverable[]
+  reviews Review[]
+  escrow Escrow?
+  dispute Dispute?
+
+  @@index([status])
+  @@index([moderationStatus])
+  @@index([moderationStatus, moderatedAt])
+  @@index([platform])
+  @@index([niche])
+  @@index([brandId])
+  @@index([activeCreatorId])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model Dispute {
+  id             String        @id @default(cuid())
+  jobId          String        @unique @db.Uuid
+  job            Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  openedByUserId String        @db.Uuid
+  openedByUser   User          @relation("DisputesOpened", fields: [openedByUserId], references: [id], onDelete: Cascade)
+  openedByRole   Role
+  status         DisputeStatus @default(OPEN)
+  reason         DisputeReason
+  message        String?
+  createdAt      DateTime      @default(now())
+  resolvedAt     DateTime?
+  resolvedByUserId String?     @db.Uuid
+  resolvedByUser   User?       @relation("DisputesResolved", fields: [resolvedByUserId], references: [id], onDelete: SetNull)
+  resolution     DisputeResolution?
+  adminNote      String?
+  messages       DisputeMessage[]
+
+  @@index([status, createdAt])
+}
+
+model DisputeMessage {
+  id           String             @id @default(uuid()) @db.Uuid
+  disputeId    String
+  dispute      Dispute            @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  authorUserId String             @db.Uuid
+  authorUser   User               @relation("DisputeMessageAuthor", fields: [authorUserId], references: [id], onDelete: Cascade)
+  authorRole   Role
+  kind         DisputeMessageKind
+  text         String?
+  links        Json?
+  createdAt    DateTime           @default(now())
+
+  @@index([disputeId, createdAt])
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  CHANGES_REQUESTED
+  APPROVED
+}
+
+enum SubmissionItemType {
+  FINAL_VIDEO
+  RAW_FILES
+  PROJECT_FILE
+  OTHER
+}
+
+enum InvitationStatus {
+  SENT
+  ACCEPTED
+  DECLINED
+}
+
+model Submission {
+  id        String @id @default(uuid()) @db.Uuid
+  jobId     String @db.Uuid
+  job       Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  creatorId String @db.Uuid
+  creator   User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  version Int
+  status  SubmissionStatus @default(SUBMITTED)
+  note    String?
+
+  createdAt DateTime @default(now())
+
+  items SubmissionItem[]
+
+  @@unique([jobId, version])
+}
+
+model Escrow {
+  id         String      @id @default(uuid()) @db.Uuid
+  jobId      String      @unique @db.Uuid
+  job        Job         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  brandId    String      @db.Uuid
+  brand      User        @relation("EscrowByBrand", fields: [brandId], references: [id], onDelete: Cascade)
+  creatorId  String?     @db.Uuid
+  creator    User?       @relation("EscrowByCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  amountCents Int
+  currency   Currency
+  status     EscrowStatus @default(UNFUNDED)
+  fundedAt   DateTime?
+  releasedAt DateTime?
+  refundedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  ledgerEntries LedgerEntry[]
+
+  @@index([brandId])
+  @@index([creatorId])
+  @@index([status])
+}
+
+model LedgerEntry {
+  id           String           @id @default(uuid()) @db.Uuid
+  type         LedgerEntryType
+  amountCents  Int
+  currency     Currency
+  fromUserId   String? @db.Uuid
+  fromUser     User?   @relation("LedgerFromUser", fields: [fromUserId], references: [id], onDelete: SetNull)
+  toUserId     String? @db.Uuid
+  toUser       User?   @relation("LedgerToUser", fields: [toUserId], references: [id], onDelete: SetNull)
+  escrowId     String? @db.Uuid
+  escrow       Escrow? @relation(fields: [escrowId], references: [id], onDelete: SetNull)
+  payoutRequestId String? @db.Uuid
+  payoutRequest PayoutRequest? @relation(fields: [payoutRequestId], references: [id], onDelete: SetNull)
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([escrowId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model PayoutRequest {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountCents  Int
+  currency     Currency
+  status       PayoutRequestStatus @default(PENDING)
+  payoutMethod String?
+  reason       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ledgerEntries LedgerEntry[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model SubmissionItem {
+  id           String @id @default(uuid()) @db.Uuid
+  submissionId String @db.Uuid
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  type SubmissionItemType
+  url  String
+}
+
+model Invitation {
+  id        String @id @default(uuid()) @db.Uuid
+  jobId     String @db.Uuid
+  job       Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  brandId String @db.Uuid
+  brand   User   @relation("InvitationByBrand", fields: [brandId], references: [id], onDelete: Cascade)
+
+  creatorId String @db.Uuid
+  creator   User   @relation("InvitationByCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+
+  status    InvitationStatus @default(SENT)
+  message   String?
+  createdAt DateTime @default(now())
+
+  @@unique([jobId, creatorId])
+  @@index([status])
+  @@index([creatorId])
+  @@index([createdAt])
+}
+
+model Application {
+  id        String @id @default(uuid()) @db.Uuid
+  jobId     String @db.Uuid
+  job       Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  creatorId String @db.Uuid
+  creator   User   @relation("ApplicationsByCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+
+  priceQuote Int?
+  message    String?
+
+  status ApplicationStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+
+  @@unique([jobId, creatorId])
+  @@index([status])
+  @@index([creatorId])
+  @@index([createdAt])
+}
+
+model Conversation {
+  id        String @id @default(uuid()) @db.Uuid
+  jobId     String? @db.Uuid
+  job       Job?    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([updatedAt])
+  @@index([jobId])
+}
+
+model ConversationParticipant {
+  id             String @id @default(uuid()) @db.Uuid
+  conversationId String @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  lastReadAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([conversationId, userId])
+  @@index([userId, lastReadAt])
+}
+
+model Message {
+  id             String @id @default(uuid()) @db.Uuid
+  conversationId String @db.Uuid
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  senderId String @db.Uuid
+  sender   User   @relation("MessagesSentByUser", fields: [senderId], references: [id], onDelete: Cascade)
+
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([createdAt])
+  @@index([senderId])
+}
+
+model Deliverable {
+  id        String @id @default(uuid()) @db.Uuid
+  jobId     String @db.Uuid
+  job       Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  creatorId String @db.Uuid
+  brandId   String @db.Uuid
+
+  status DeliverableStatus @default(SUBMITTED)
+
+  links String[] @default([])
+  notes String?
+
+  submittedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Review {
+  id        String @id @default(uuid()) @db.Uuid
+  jobId     String @db.Uuid
+  job       Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  fromUserId String @db.Uuid
+  fromUser   User   @relation("ReviewsWritten", fields: [fromUserId], references: [id], onDelete: Cascade)
+
+  toUserId String @db.Uuid
+  toUser   User   @relation("ReviewsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  rating Int
+  text   String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([jobId, fromUserId])
+  @@index([toUserId])
+  @@index([jobId])
+}
