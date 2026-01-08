@@ -1,0 +1,65 @@
+{
+  "name": "ugc-marketplace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "postinstall": "prisma generate",
+    "lint": "next lint",
+    "check": "npm run lint && npm run typecheck",
+    "format": "prettier --write .",
+    "db:generate": "prisma generate",
+    "db:wait": "node scripts/db-wait.mjs",
+    "db:push": "npm run db:wait && node scripts/with-db-url.mjs prisma db push",
+    "db:migrate": "npm run db:wait && node scripts/with-db-url.mjs prisma migrate dev",
+    "db:deploy": "npm run db:wait && node scripts/with-db-url.mjs prisma migrate deploy",
+    "db:reset": "npm run db:wait && node scripts/with-db-url.mjs prisma migrate reset --force",
+    "db:seed": "npm run db:wait && node scripts/with-db-url.mjs prisma db seed",
+    "db:studio": "node scripts/with-db-url.mjs prisma studio",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "bot:simulate": "tsx scripts/outbox-consumer.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^3.3.4",
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^2.4.3",
+    "clsx": "^2.1.1",
+    "date-fns": "^3.6.0",
+    "framer-motion": "^11.5.6",
+    "lucide-react": "^0.436.0",
+    "next": "^14.2.12",
+    "next-auth": "^4.24.11",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.52.2",
+    "tailwind-merge": "^2.5.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@next/eslint-plugin-next": "^14.2.12",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.14.10",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.12",
+    "postcss": "^8.4.41",
+    "prettier": "^3.3.3",
+    "prisma": "^5.22.0",
+    "tailwindcss": "^3.4.10",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
