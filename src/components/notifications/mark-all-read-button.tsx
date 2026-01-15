@@ -15,9 +15,9 @@ export function MarkAllReadButton() {
     setError(null);
     try {
       const res = await fetch("/api/notifications/read-all", { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось отметить прочитанными.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось отметить прочитанными.");
         return;
       }
       router.refresh();

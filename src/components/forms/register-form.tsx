@@ -53,9 +53,9 @@ export function RegisterForm() {
           body: JSON.stringify(values),
         });
 
-        if (!res.ok) {
-          const data = await res.json().catch(() => null);
-          setError(data?.error ?? "Не удалось создать аккаунт.");
+        const data = await res.json().catch(() => null);
+        if (!res.ok || data?.ok === false) {
+          setError(data?.error?.message ?? "Не удалось создать аккаунт.");
           return;
         }
 

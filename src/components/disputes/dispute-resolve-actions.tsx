@@ -31,8 +31,8 @@ export function DisputeResolveActions({ disputeId }: Props) {
         body: JSON.stringify({ note }),
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setError(data?.message ?? data?.error ?? "Не удалось выполнить действие.");
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось выполнить действие.");
         return;
       }
       router.refresh();

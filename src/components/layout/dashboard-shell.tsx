@@ -68,7 +68,23 @@ export async function DashboardShell({ children }: { children: ReactNode }) {
             <Badge variant="soft">{roleLabel}</Badge>
             <span className="text-xs uppercase tracking-wide">Навигация кабинета</span>
           </div>
-          <nav className="mt-2 flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
+          <details className="mt-2 md:hidden">
+            <summary className="list-none cursor-pointer rounded-md border border-border/60 px-3 py-2 text-sm text-muted-foreground hover:text-foreground">
+              Меню
+            </summary>
+            <nav className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
+              {navItems.map((item) => (
+                <Link
+                  key={item.href}
+                  className="rounded-md px-3 py-2 hover:bg-muted/50 hover:text-foreground"
+                  href={item.href}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+          </details>
+          <nav className="mt-2 hidden md:flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
             {navItems.map((item) => (
               <Link
                 key={item.href}

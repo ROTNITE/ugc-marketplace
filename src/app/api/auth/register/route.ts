@@ -1,18 +1,23 @@
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validators";
 import { hashPassword } from "@/lib/password";
 import { Role } from "@prisma/client";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, ok } from "@/lib/api/contract";
+import { logApiError } from "@/lib/request-id";
 
 export async function POST(req: Request) {
+  const requestId = ensureRequestId(req);
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
     const parsed = registerSchema.safeParse(body);
-
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Некорректные данные регистрации.", details: parsed.error.flatten() },
-        { status: 400 },
+      return fail(
+        400,
+        API_ERROR_CODES.VALIDATION_ERROR,
+        "Некорректные данные регистрации.",
+        requestId,
+        parsed.error.flatten(),
       );
     }
 
@@ -20,7 +25,9 @@ export async function POST(req: Request) {
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
-      return NextResponse.json({ error: "Этот email уже зарегистрирован." }, { status: 409 });
+      return fail(409, API_ERROR_CODES.CONFLICT, "Этот email уже зарегистрирован.", requestId, {
+        code: "EMAIL_EXISTS",
+      });
     }
 
     const passwordHash = await hashPassword(password);
@@ -53,13 +60,15 @@ export async function POST(req: Request) {
       select: { id: true, email: true, role: true },
     });
 
-    return NextResponse.json({ ok: true, user }, { status: 201 });
+    return ok({ user }, requestId, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message.includes("DATABASE_URL")) {
-      return NextResponse.json(
-        { error: "DATABASE_URL не задан. Создай .env (см. .env.example) и запусти: npm run db:up" },
-        { status: 500 },
+      return fail(
+        500,
+        API_ERROR_CODES.INTERNAL_ERROR,
+        "DATABASE_URL не задан. Создай .env (см. .env.example) и запусти: npm run db:up",
+        requestId,
       );
     }
     if (
@@ -69,14 +78,14 @@ export async function POST(req: Request) {
       message.includes("P1000") ||
       message.includes("Authentication failed")
     ) {
-      return NextResponse.json(
-        {
-          error:
-            "База данных недоступна. Проверьте, что docker compose up запущен, и DATABASE_URL указывает на правильный пароль.",
-        },
-        { status: 500 },
+      return fail(
+        500,
+        API_ERROR_CODES.INTERNAL_ERROR,
+        "База данных недоступна. Проверьте, что docker compose up запущен, и DATABASE_URL указывает на правильный пароль.",
+        requestId,
       );
     }
-    return NextResponse.json({ error: "Server error." }, { status: 500 });
+    logApiError("POST /api/auth/register failed", error, requestId);
+    return fail(500, API_ERROR_CODES.INTERNAL_ERROR, "Не удалось создать аккаунт.", requestId);
   }
 }

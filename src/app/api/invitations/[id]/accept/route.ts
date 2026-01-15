@@ -1,25 +1,26 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, mapAuthError, ok } from "@/lib/api/contract";
+import { requireRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { emitEvent } from "@/lib/outbox";
 import { getCreatorIds } from "@/lib/authz";
 import { getCreatorCompleteness } from "@/lib/profiles/completeness";
+import { logApiError } from "@/lib/request-id";
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role !== "CREATOR") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-  if (!user.creatorProfileId) {
-    return NextResponse.json(
-      { error: "CREATOR_PROFILE_REQUIRED", message: "Заполните профиль креатора перед принятием." },
-      { status: 409 },
-    );
-  }
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const requestId = ensureRequestId(req);
 
   try {
+    const user = await requireRole("CREATOR");
+    if (!user.creatorProfileId) {
+      return fail(
+        409,
+        API_ERROR_CODES.CONFLICT,
+        "Заполните профиль креатора перед принятием.",
+        requestId,
+        { code: "CREATOR_PROFILE_REQUIRED", profileUrl: "/dashboard/profile" },
+      );
+    }
     const invitation = await prisma.invitation.findUnique({
       where: { id: params.id },
       select: { id: true, status: true, jobId: true, creatorId: true, brandId: true },
@@ -27,11 +28,13 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
     const creatorIds = getCreatorIds(user);
     if (!invitation || !creatorIds.includes(invitation.creatorId)) {
-      return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+      return fail(404, API_ERROR_CODES.NOT_FOUND, "Приглашение не найдено.", requestId);
     }
 
     if (invitation.status !== "SENT") {
-      return NextResponse.json({ error: "ALREADY_HANDLED" }, { status: 409 });
+      return fail(409, API_ERROR_CODES.CONFLICT, "Приглашение уже обработано.", requestId, {
+        code: "ALREADY_HANDLED",
+      });
     }
 
     const creatorProfile = await prisma.creatorProfile.findUnique({
@@ -40,9 +43,12 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     });
 
     if (!creatorProfile) {
-      return NextResponse.json(
-        { error: "CREATOR_PROFILE_REQUIRED", message: "Заполните профиль креатора перед принятием." },
-        { status: 409 },
+      return fail(
+        409,
+        API_ERROR_CODES.CONFLICT,
+        "Заполните профиль креатора перед принятием.",
+        requestId,
+        { code: "CREATOR_PROFILE_REQUIRED", profileUrl: "/dashboard/profile" },
       );
     }
 
@@ -56,27 +62,21 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     });
 
     if (completeness.missing.length > 0) {
-      return NextResponse.json(
-        {
-          error: "PROFILE_INCOMPLETE",
-          message: "Заполните профиль перед принятием приглашения.",
-          completeProfile: true,
-          missing: completeness.missing,
-          profileUrl: "/dashboard/profile",
-        },
-        { status: 400 },
-      );
+      return fail(409, API_ERROR_CODES.CONFLICT, "Заполните профиль перед принятием приглашения.", requestId, {
+        code: "PROFILE_INCOMPLETE",
+        completeProfile: true,
+        missing: completeness.missing,
+        profileUrl: "/dashboard/profile",
+      });
     }
 
     if (creatorProfile.verificationStatus !== "VERIFIED") {
-      return NextResponse.json(
-        {
-          error: "CREATOR_NOT_VERIFIED",
-          message: "Подтвердите профиль, чтобы принимать приглашения.",
-          verifyProfile: true,
-          profileUrl: "/dashboard/profile",
-        },
-        { status: 409 },
+      return fail(
+        409,
+        API_ERROR_CODES.CONFLICT,
+        "Подтвердите профиль, чтобы принимать приглашения.",
+        requestId,
+        { code: "CREATOR_NOT_VERIFIED", verifyProfile: true, profileUrl: "/dashboard/profile" },
       );
     }
 
@@ -85,7 +85,9 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       select: { id: true, status: true, moderationStatus: true },
     });
     if (!job || job.status !== "PUBLISHED" || job.moderationStatus === "REJECTED") {
-      return NextResponse.json({ error: "JOB_NOT_AVAILABLE" }, { status: 409 });
+      return fail(409, API_ERROR_CODES.CONFLICT, "Заказ недоступен.", requestId, {
+        code: "JOB_NOT_AVAILABLE",
+      });
     }
 
     const result = await prisma.$transaction(async (tx) => {
@@ -119,9 +121,11 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       applicationId: result.applicationId,
     });
 
-    return NextResponse.json({ ok: true, applicationId: result.applicationId });
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "Server error." }, { status: 500 });
+    return ok({ applicationId: result.applicationId }, requestId);
+  } catch (error) {
+    const authError = mapAuthError(error, requestId);
+    if (authError) return authError;
+    logApiError("[api] invitations:accept failed", error, requestId, { invitationId: params.id });
+    return fail(500, API_ERROR_CODES.INTERNAL_ERROR, "Не удалось принять приглашение.", requestId);
   }
 }

@@ -1,41 +1,43 @@
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
 import { jobApplySchema } from "@/lib/validators";
 import { emitEvent } from "@/lib/outbox";
 import { createNotification } from "@/lib/notifications";
-import { getCreatorIds } from "@/lib/authz";
+import { getCreatorIds, requireRole } from "@/lib/authz";
 import { getCreatorCompleteness } from "@/lib/profiles/completeness";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, ok, parseJson, mapAuthError } from "@/lib/api/contract";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role !== "CREATOR") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-  if (!user.creatorProfileId) {
-    return NextResponse.json(
-      { error: "CREATOR_PROFILE_REQUIRED", message: "Заполните профиль креатора перед откликом." },
-      { status: 409 },
-    );
-  }
-
-  const job = await prisma.job.findUnique({ where: { id: params.id } });
-  if (!job || job.status !== "PUBLISHED" || job.moderationStatus !== "APPROVED") {
-    return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-  }
-
+  const requestId = ensureRequestId(req);
   try {
+    const user = await requireRole("CREATOR");
+    if (!user.creatorProfileId) {
+      return fail(
+        409,
+        API_ERROR_CODES.CONFLICT,
+        "Заполните профиль креатора перед откликом.",
+        requestId,
+        { code: "CREATOR_PROFILE_REQUIRED", profileUrl: "/dashboard/profile" },
+      );
+    }
+
+    const job = await prisma.job.findUnique({ where: { id: params.id } });
+    if (!job || job.status !== "PUBLISHED" || job.moderationStatus !== "APPROVED") {
+      return fail(404, API_ERROR_CODES.NOT_FOUND, "Заказ не найден.", requestId);
+    }
+
     const creatorProfile = await prisma.creatorProfile.findUnique({
       where: { userId: user.id },
       include: { portfolioItems: { select: { url: true } } },
     });
 
     if (!creatorProfile) {
-      return NextResponse.json(
-        { error: "CREATOR_PROFILE_REQUIRED", message: "Заполните профиль креатора перед откликом." },
-        { status: 409 },
+      return fail(
+        409,
+        API_ERROR_CODES.CONFLICT,
+        "Заполните профиль креатора перед откликом.",
+        requestId,
+        { code: "CREATOR_PROFILE_REQUIRED", profileUrl: "/dashboard/profile" },
       );
     }
 
@@ -49,23 +51,22 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     });
 
     if (completeness.missing.length > 0) {
-      return NextResponse.json(
+      return fail(
+        409,
+        API_ERROR_CODES.CONFLICT,
+        "Заполните профиль перед откликом на заказ.",
+        requestId,
         {
-          error: "PROFILE_INCOMPLETE",
-          message: "Заполните профиль перед откликом на заказ.",
+          code: "PROFILE_INCOMPLETE",
           completeProfile: true,
           missing: completeness.missing,
           profileUrl: "/dashboard/profile",
         },
-        { status: 400 },
       );
     }
 
-    const body = await req.json();
-    const parsed = jobApplySchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: "BAD_REQUEST", details: parsed.error.flatten() }, { status: 400 });
-    }
+    const parsed = await parseJson(req, jobApplySchema, requestId);
+    if ("errorResponse" in parsed) return parsed.errorResponse;
 
     const creatorIds = getCreatorIds(user);
     const existing = await prisma.application.findFirst({
@@ -73,7 +74,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     });
 
     if (existing) {
-      return NextResponse.json({ error: "Вы уже откликались на этот заказ." }, { status: 409 });
+      return fail(409, API_ERROR_CODES.CONFLICT, "Вы уже откликались на этот заказ.", requestId);
     }
 
     const app = await prisma.application.create({
@@ -98,8 +99,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       href: `/dashboard/jobs/${job.id}/applications`,
     });
 
-    return NextResponse.json({ ok: true, application: app }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "Server error." }, { status: 500 });
+    return ok({ application: app }, requestId, { status: 201 });
+  } catch (error) {
+    const mapped = mapAuthError(error, requestId);
+    if (mapped) return mapped;
+    return fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId);
   }
 }

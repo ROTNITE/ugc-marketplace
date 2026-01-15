@@ -22,9 +22,9 @@ export function CancelDealButton({ jobId }: { jobId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.message ?? data?.error ?? "Не удалось отменить сделку.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось отменить сделку.");
         return;
       }
       router.refresh();

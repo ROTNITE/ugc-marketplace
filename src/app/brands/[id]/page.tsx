@@ -5,7 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Container } from "@/components/ui/container";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -54,18 +57,23 @@ export default async function BrandPublicProfile({ params }: { params: { id: str
   const websiteUrl = brand.website ? normalizeUrl(brand.website) : null;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10 space-y-6">
-      <Link className="text-sm text-muted-foreground hover:text-foreground" href="/jobs">
-        ← К заказам
-      </Link>
-      <div className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">{brand.companyName}</h1>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>Публичный профиль бренда</span>
-          <Badge variant="soft">Рейтинг: {averageRating}</Badge>
-          <Badge variant="soft">Отзывов: {reviewStats._count._all}</Badge>
-        </div>
-      </div>
+    <Container size="md" className="py-10 space-y-6">
+      <PageHeader
+        title={brand.companyName}
+        description="Публичный профиль бренда"
+        eyebrow={
+          <Link className="hover:text-foreground" href="/jobs">
+            К заказам
+          </Link>
+        }
+        actions={
+          <>
+            <Badge variant="soft">Рейтинг: {averageRating}</Badge>
+            <Badge variant="soft">Отзывов: {reviewStats._count._all}</Badge>
+          </>
+        }
+      />
+
 
       <Card>
         <CardHeader>
@@ -112,9 +120,7 @@ export default async function BrandPublicProfile({ params }: { params: { id: str
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           {recentReviews.length === 0 ? (
-            <Alert variant="info" title="Пока нет отзывов">
-              Отзывы появятся после завершенных сделок.
-            </Alert>
+            <EmptyState title="Пока нет отзывов" description="Отзывы появятся после завершенных сделок." />
           ) : (
             recentReviews.map((review) => (
               <div key={review.id} className="rounded-md border border-border/60 bg-muted/30 p-3">
@@ -131,6 +137,6 @@ export default async function BrandPublicProfile({ params }: { params: { id: str
           )}
         </CardContent>
       </Card>
-    </div>
+    </Container>
   );
 }

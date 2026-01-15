@@ -15,9 +15,9 @@ export function ClearCompletedConversationsButton() {
     setError(null);
     try {
       const res = await fetch("/api/conversations/clear", { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось очистить чаты.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось очистить чаты.");
         return;
       }
       router.refresh();

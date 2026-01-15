@@ -35,8 +35,8 @@ export function ReviewForm({ jobId, toLabel }: ReviewFormProps) {
         }),
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setError(data?.error ?? "Не удалось оставить отзыв.");
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось оставить отзыв.");
         return;
       }
       setSuccess(true);

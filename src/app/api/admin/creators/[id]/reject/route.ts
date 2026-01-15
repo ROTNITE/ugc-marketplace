@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { createNotification } from "@/lib/notifications";
 import { emitEvent } from "@/lib/outbox";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, mapAuthError, ok, parseJson } from "@/lib/api/contract";
+import { requireRole } from "@/lib/authz";
+import { logApiError } from "@/lib/request-id";
 
 const rejectSchema = z.object({
   reason: z
@@ -15,53 +16,56 @@ const rejectSchema = z.object({
 });
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
+  const requestId = ensureRequestId(_req);
+  try {
+    const user = await requireRole("ADMIN");
+    const moderator = await prisma.user.findUnique({ where: { id: user.id }, select: { id: true } });
 
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role !== "ADMIN") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+    const parsed = await parseJson(_req, rejectSchema, requestId);
+    if ("errorResponse" in parsed) return parsed.errorResponse;
 
-  const moderator = await prisma.user.findUnique({ where: { id: user.id }, select: { id: true } });
+    const profile = await prisma.creatorProfile.findUnique({
+      where: { id: params.id },
+      select: { id: true, userId: true, verificationStatus: true },
+    });
 
-  const parsed = rejectSchema.safeParse(await _req.json().catch(() => ({})));
-  if (!parsed.success) {
-    return NextResponse.json({ error: "INVALID_REASON", details: parsed.error.flatten() }, { status: 400 });
+    if (!profile) return fail(404, API_ERROR_CODES.NOT_FOUND, "Профиль не найден.", requestId);
+    if (profile.verificationStatus !== "PENDING") {
+      return fail(409, API_ERROR_CODES.CONFLICT, "Статус уже изменен.", requestId, {
+        code: "STATUS_NOT_PENDING",
+      });
+    }
+
+    await prisma.creatorProfile.update({
+      where: { id: profile.id },
+      data: {
+        verificationStatus: "REJECTED",
+        verificationReason: parsed.data.reason,
+        verifiedAt: null,
+        verificationReviewedAt: new Date(),
+        verificationReviewedByUserId: moderator ? moderator.id : null,
+      },
+    });
+
+    await createNotification(profile.userId, {
+      type: "CREATOR_VERIFICATION_REJECTED",
+      title: "Верификация отклонена",
+      body: parsed.data.reason,
+      href: "/dashboard/profile",
+    });
+
+    await emitEvent("CREATOR_VERIFICATION_REJECTED", {
+      creatorProfileId: profile.id,
+      userId: profile.userId,
+      reason: parsed.data.reason,
+      reviewedBy: moderator?.id ?? null,
+    }).catch(() => {});
+
+    return ok({ rejected: true }, requestId);
+  } catch (error) {
+    const authError = mapAuthError(error, requestId);
+    if (authError) return authError;
+    logApiError("POST /api/admin/creators/[id]/reject failed", error, requestId, { creatorId: params.id });
+    return fail(500, API_ERROR_CODES.INTERNAL_ERROR, "Не удалось отклонить профиль.", requestId);
   }
-
-  const profile = await prisma.creatorProfile.findUnique({
-    where: { id: params.id },
-    select: { id: true, userId: true, verificationStatus: true },
-  });
-
-  if (!profile) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-  if (profile.verificationStatus !== "PENDING") {
-    return NextResponse.json({ error: "STATUS_NOT_PENDING" }, { status: 409 });
-  }
-
-  await prisma.creatorProfile.update({
-    where: { id: profile.id },
-    data: {
-      verificationStatus: "REJECTED",
-      verificationReason: parsed.data.reason,
-      verifiedAt: null,
-      verificationReviewedAt: new Date(),
-      verificationReviewedByUserId: moderator ? moderator.id : null,
-    },
-  });
-
-  await createNotification(profile.userId, {
-    type: "CREATOR_VERIFICATION_REJECTED",
-    title: "Верификация отклонена",
-    body: parsed.data.reason,
-    href: "/dashboard/profile",
-  });
-
-  await emitEvent("CREATOR_VERIFICATION_REJECTED", {
-    creatorProfileId: profile.id,
-    userId: profile.userId,
-    reason: parsed.data.reason,
-    reviewedBy: moderator?.id ?? null,
-  }).catch(() => {});
-
-  return NextResponse.json({ ok: true });
 }

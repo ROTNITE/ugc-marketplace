@@ -3,10 +3,10 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-function safeRedirectPath(href?: string | null) {
-  if (!href) return "/dashboard/notifications";
-  if (!href.startsWith("/")) return "/dashboard/notifications";
-  if (href.startsWith("//")) return "/dashboard/notifications";
+function safeRedirectPath(href: string | null | undefined, fallback: string) {
+  if (!href) return fallback;
+  if (!href.startsWith("/")) return fallback;
+  if (href.startsWith("//")) return fallback;
   return href;
 }
 
@@ -23,8 +23,9 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     select: { id: true, userId: true, href: true, isRead: true },
   });
 
+  const fallback = user.role === "ADMIN" ? "/admin/notifications" : "/dashboard/notifications";
   if (!notification || notification.userId !== user.id) {
-    return NextResponse.redirect(new URL("/dashboard/notifications", req.url));
+    return NextResponse.redirect(new URL(fallback, req.url));
   }
 
   if (!notification.isRead) {
@@ -34,6 +35,6 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     });
   }
 
-  const target = safeRedirectPath(notification.href);
+  const target = safeRedirectPath(notification.href, fallback);
   return NextResponse.redirect(new URL(target, req.url));
 }

@@ -1,11 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { JobFilters } from "@/components/jobs/job-filters";
-import { JobCard } from "@/components/jobs/job-card";
+import Link from "next/link";
+import { JobCard, type JobListItem } from "@/components/jobs/job-card";
 import { Alert } from "@/components/ui/alert";
-import { parseJobListFilters, buildJobWhere, buildJobOrderBy } from "@/lib/jobs/filters";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
+import { Container } from "@/components/ui/container";
+import { PageHeader } from "@/components/ui/page-header";
+import { parseJobListFilters, buildJobWhere, buildJobOrderBy, buildJobCursorWhere, type JobCursor } from "@/lib/jobs/filters";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { JobAlertCreator } from "@/components/jobs/job-alert-creator";
+import { decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -15,18 +21,49 @@ export default async function JobsPage({
   searchParams: Record<string, string | string[] | undefined>;
 }) {
   const filters = parseJobListFilters(searchParams);
+  const limit = parseLimit(searchParams);
+  const cursor = decodeCursor<JobCursor>(parseCursor(searchParams));
   const session = await getServerSession(authOptions);
   const user = session?.user;
 
-  let jobs: Awaited<ReturnType<typeof prisma.job.findMany>> | null = null;
+  let jobs: JobListItem[] | null = null;
+  let nextCursor: string | null = null;
   let dbError: string | null = null;
 
   try {
-    jobs = await prisma.job.findMany({
-      where: buildJobWhere(filters),
+    const where = buildJobWhere(filters);
+    const cursorWhere = buildJobCursorWhere(filters, cursor);
+    if (cursorWhere) {
+      where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), cursorWhere];
+    }
+
+    const result = await prisma.job.findMany({
+      where,
       orderBy: buildJobOrderBy(filters),
-      take: 50,
+      take: limit + 1,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        platform: true,
+        niche: true,
+        rightsPackage: true,
+        budgetMin: true,
+        budgetMax: true,
+        currency: true,
+        deadlineDate: true,
+        deliverablesCount: true,
+        createdAt: true,
+      },
     });
+
+    const paged = sliceWithNextCursor(result, limit, (job) => ({
+      id: job.id,
+      createdAt: job.createdAt.toISOString(),
+      budgetMax: job.budgetMax,
+    }));
+    jobs = paged.items;
+    nextCursor = paged.nextCursor;
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message.includes("DATABASE_URL")) {
@@ -45,22 +82,33 @@ export default async function JobsPage({
     }
   }
 
+  const nextParams = new URLSearchParams();
+  Object.entries(searchParams).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => nextParams.append(key, item));
+      return;
+    }
+    if (value !== undefined) {
+      nextParams.set(key, value);
+    }
+  });
+  if (nextCursor) {
+    nextParams.set("cursor", nextCursor);
+    nextParams.set("limit", String(limit));
+  }
+
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10">
-      <div className="flex flex-col md:flex-row gap-6">
+    <Container className="py-10">
+      <div className="flex flex-col gap-6 md:flex-row">
         <aside className="md:w-80">
           <JobFilters />
         </aside>
 
         <section className="flex-1 space-y-4">
-          <div className="flex items-end justify-between gap-2">
-            <div>
-              <h2 className="text-2xl font-semibold tracking-tight">Заказы</h2>
-              <p className="text-sm text-muted-foreground">
-                Лента заданий для UGC-креаторов. В MVP фильтры базовые - расширим позже.
-              </p>
-            </div>
-          </div>
+          <PageHeader
+            title="Заказы"
+            description="Лента заданий для UGC-креаторов. В MVP фильтры базовые - расширим позже."
+          />
 
           {user?.role === "CREATOR" ? <JobAlertCreator /> : null}
 
@@ -71,18 +119,35 @@ export default async function JobsPage({
           ) : null}
 
           {jobs && jobs.length === 0 ? (
-            <Alert title="Пока нет подходящих заказов" variant="info">
-              Попробуйте сбросить фильтры или зайдите позже.
-            </Alert>
+            <EmptyState
+              title="Пока нет подходящих заказов"
+              description="Попробуйте сбросить фильтры или зайдите позже."
+              action={
+                <Link href="/jobs">
+                  <Button variant="outline" size="sm">
+                    Сбросить фильтры
+                  </Button>
+                </Link>
+              }
+            />
           ) : jobs ? (
-            <div className="grid gap-4">
-              {jobs.map((job) => (
-                <JobCard key={job.id} job={job} />
-              ))}
-            </div>
+            <>
+              <div className="grid gap-4">
+                {jobs.map((job) => (
+                  <JobCard key={job.id} job={job} />
+                ))}
+              </div>
+              {nextCursor ? (
+                <div className="pt-4">
+                  <Link href={`/jobs?${nextParams.toString()}`}>
+                    <Button variant="outline">Показать еще</Button>
+                  </Link>
+                </div>
+              ) : null}
+            </>
           ) : null}
         </section>
       </div>
-    </div>
+    </Container>
   );
 }

@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
 import { Container } from "@/components/ui/container";
 import { PageHeader } from "@/components/ui/page-header";
@@ -18,21 +19,21 @@ export default async function AdminPage() {
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Нужен вход">
           Перейдите на страницу входа.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   if (user.role !== "ADMIN") {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="warning" title="Недоступно">
           Эта страница доступна только администраторам.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
@@ -114,9 +115,7 @@ export default async function AdminPage() {
         }
       >
         {recentEvents.length === 0 ? (
-          <Alert variant="info" title="Нет событий">
-            События появятся после активности в системе.
-          </Alert>
+          <EmptyState title="Нет событий" description="События появятся после активности в системе." />
         ) : (
           <div className="space-y-2 text-sm">
             {recentEvents.map((event) => (

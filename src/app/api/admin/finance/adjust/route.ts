@@ -1,11 +1,12 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
 import { z } from "zod";
-import { Currency } from "@prisma/client";
-import { authOptions } from "@/lib/auth";
+import { Currency, Prisma } from "@prisma/client";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, mapAuthError, ok, parseJson } from "@/lib/api/contract";
+import { requireRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { createNotification } from "@/lib/notifications";
 import { emitEvent } from "@/lib/outbox";
+import { logApiError } from "@/lib/request-id";
 
 const schema = z.object({
   userId: z.string().uuid(),
@@ -17,21 +18,15 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role !== "ADMIN") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-
-  const payload = await req.json().catch(() => null);
-  const parsed = schema.safeParse(payload);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "BAD_REQUEST", details: parsed.error.flatten() }, { status: 400 });
-  }
-
-  const { userId, amountCents, currency, reason } = parsed.data;
+  const requestId = ensureRequestId(req);
 
   try {
+    await requireRole("ADMIN");
+    const parsed = await parseJson(req, schema, requestId);
+    if ("errorResponse" in parsed) return parsed.errorResponse;
+
+    const { userId, amountCents, currency, reason } = parsed.data;
+
     const result = await prisma.$transaction(async (tx) => {
       const wallet = await tx.wallet.upsert({
         where: { userId },
@@ -55,6 +50,7 @@ export async function POST(req: Request) {
           currency,
           toUserId: amountCents > 0 ? userId : null,
           fromUserId: amountCents < 0 ? userId : null,
+          reference: `FINANCE_ADJUST:${requestId}`,
           metadata: { reason, signedAmount: amountCents },
         },
         select: { id: true, createdAt: true },
@@ -78,11 +74,19 @@ export async function POST(req: Request) {
       ledgerId: result.ledgerId,
     });
 
-    return NextResponse.json({ ok: true });
+    return ok({ adjusted: true }, requestId);
   } catch (error) {
-    if (error instanceof Error && error.message === "NEGATIVE_BALANCE") {
-      return NextResponse.json({ error: "Нельзя уводить баланс в минус." }, { status: 409 });
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return fail(409, API_ERROR_CODES.CONFLICT, "Операция уже была выполнена.", requestId);
     }
-    return NextResponse.json({ error: "Server error." }, { status: 500 });
+    if (error instanceof Error && error.message === "NEGATIVE_BALANCE") {
+      return fail(409, API_ERROR_CODES.CONFLICT, "Нельзя уводить баланс в минус.", requestId, {
+        code: "NEGATIVE_BALANCE",
+      });
+    }
+    const authError = mapAuthError(error, requestId);
+    if (authError) return authError;
+    logApiError("POST /api/admin/finance/adjust failed", error, requestId);
+    return fail(500, API_ERROR_CODES.INTERNAL_ERROR, "Не удалось сохранить корректировку.", requestId);
   }
 }

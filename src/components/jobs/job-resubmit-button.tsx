@@ -18,10 +18,11 @@ export function JobResubmitButton({ jobId }: Props) {
     setMessage(null);
     try {
       const res = await fetch(`/api/jobs/${jobId}/resubmit`, { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        const reason = data?.error ?? "Не удалось отправить на модерацию.";
-        setError(reason === "ALREADY_APPROVED" ? "Заказ уже одобрен." : reason);
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        const code = data?.error?.details?.code;
+        const reason = data?.error?.message ?? "Не удалось отправить на модерацию.";
+        setError(code === "ALREADY_APPROVED" ? "Заказ уже одобрен." : reason);
         return;
       }
       setMessage("Отправлено на модерацию. Мы обновим статус после проверки.");

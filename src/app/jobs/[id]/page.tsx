@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Container } from "@/components/ui/container";
+import { PageHeader } from "@/components/ui/page-header";
+import { SectionCard } from "@/components/ui/section-card";
 import {
   PLATFORM_LABELS,
   NICHE_LABELS,
@@ -16,37 +18,21 @@ import { JobApplyForm } from "@/components/jobs/job-apply-form";
 import { Alert } from "@/components/ui/alert";
 import { WithdrawButton } from "@/components/applications/withdraw-button";
 import { Button } from "@/components/ui/button";
-import { ModerationStatus } from "@prisma/client";
 import { JobResubmitButton } from "@/components/jobs/job-resubmit-button";
 import { JobPauseToggle, JobDuplicateButton } from "@/components/jobs/job-actions";
 import { getJobForViewerOrThrow } from "@/lib/jobs/visibility";
 import { prisma } from "@/lib/prisma";
 import { getBrandIds, getCreatorIds } from "@/lib/authz";
 import { getCreatorCompleteness } from "@/lib/profiles/completeness";
+import { getApplicationStatusBadge, getJobStatusBadge, getModerationStatusBadge } from "@/lib/status-badges";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_LABELS = {
-  PENDING: "Ожидает",
-  ACCEPTED: "Принят",
-  REJECTED: "Отклонен",
-  WITHDRAWN: "Отозван",
-} as const;
 
 const DEADLINE_LABELS: Record<string, string> = {
   URGENT_48H: "Срочно (48ч)",
   DAYS_3_5: "3-5 дней",
   WEEK_PLUS: "Неделя+",
   DATE: "Дата",
-};
-
-const JOB_STATUS_LABELS: Record<string, string> = {
-  PUBLISHED: "Опубликован",
-  PAUSED: "В работе",
-  IN_REVIEW: "На проверке",
-  COMPLETED: "Завершено",
-  DRAFT: "Черновик",
-  CANCELED: "Отменен",
 };
 
 function isUuid(value: string) {
@@ -108,6 +94,8 @@ export default async function JobDetailPage({ params }: { params: { id: string }
     isCreator && creatorProfile && creatorCompleteness && creatorCompleteness.missing.length > 0,
   );
 
+  const jobStatusBadge = getJobStatusBadge(job.status, { activeCreatorId: job.activeCreatorId });
+  const moderationBadge = getModerationStatusBadge(job.moderationStatus);
   const alreadyApplied = isCreator
     ? creatorIds.length <= 1
       ? await prisma.application.findUnique({
@@ -125,6 +113,7 @@ export default async function JobDetailPage({ params }: { params: { id: string }
         })
     : null;
 
+  const applicationBadge = alreadyApplied ? getApplicationStatusBadge(alreadyApplied.status) : null;
   const conversation = alreadyApplied?.status === "ACCEPTED"
     ? await prisma.conversation.findFirst({
         where: { jobId: job.id, participants: { some: { userId: user!.id } } },
@@ -133,85 +122,89 @@ export default async function JobDetailPage({ params }: { params: { id: string }
     : null;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10 space-y-6">
-      <div className="flex flex-col gap-2">
-        <Link className="text-sm text-muted-foreground hover:text-foreground" href="/jobs">
-          К списку заказов
-        </Link>
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="soft">{PLATFORM_LABELS[job.platform]}</Badge>
-          <Badge variant="soft">{NICHE_LABELS[job.niche]}</Badge>
-          <Badge variant="soft">{RIGHTS_PACKAGE_LABELS[job.rightsPackage]}</Badge>
-          <Badge variant="soft">{JOB_STATUS_LABELS[job.status] ?? job.status}</Badge>
-        </div>
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">{job.title}</h1>
-        <p className="text-sm text-muted-foreground">
-          Бренд:{" "}
-          {brandProfileId ? (
-            <Link className="text-primary hover:underline" href={`/brands/${brandProfileId}`}>
-              {brandLabel}
-            </Link>
-          ) : (
-            <span className="text-foreground font-medium">{brandLabel}</span>
-          )}{" "}
-          · Бюджет:{" "}
-          <span className="text-foreground font-medium">
-            {job.budgetMin}-{job.budgetMax} {CURRENCY_LABELS[job.currency]}
-          </span>{" "}
-          · Дедлайн:{" "}
-          <span className="text-foreground font-medium">
-            {job.deadlineType === "DATE" && job.deadlineDate
-              ? format(job.deadlineDate, "dd.MM.yyyy")
-              : DEADLINE_LABELS[job.deadlineType] ?? "не указан"}
-          </span>
-        </p>
-        {isOwnerBrand ? (
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="soft">Модерация: {job.moderationStatus}</Badge>
-            </div>
-            {job.moderationStatus === ModerationStatus.PENDING ? (
-              <Alert variant="info" title="На модерации">
-                <p>Заказ появится в ленте после одобрения модератора.</p>
-              </Alert>
-            ) : null}
-            {job.moderationStatus === ModerationStatus.REJECTED ? (
-              <Alert variant="warning" title="Отклонено модерацией">
-                <div className="space-y-2 text-sm">
-                  <p>{job.moderationReason ?? "Причина не указана."}</p>
-                  <JobResubmitButton jobId={job.id} />
-                </div>
-              </Alert>
-            ) : null}
-            {job.moderationStatus === ModerationStatus.APPROVED ? (
-              <Alert variant="success" title="Одобрено">
-                <p>Заказ в ленте и доступен креаторам.</p>
-              </Alert>
-            ) : null}
-            <div className="flex flex-wrap items-center gap-3">
-              {canEdit ? (
-                <Link href={`/dashboard/jobs/${job.id}/edit`}>
-                  <Button size="sm">Редактировать</Button>
-                </Link>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  Нельзя редактировать после выбора исполнителя или завершения.
-                </p>
-              )}
-              {canDuplicate ? <JobDuplicateButton jobId={job.id} /> : null}
-              {canPause || canUnpause ? <JobPauseToggle jobId={job.id} status={job.status} /> : null}
-            </div>
+    <Container size="md" className="py-10 space-y-6">
+          <PageHeader
+        title={job.title}
+        description={
+          <>
+            Бренд: {" "}
+            {brandProfileId ? (
+              <Link className="text-primary hover:underline" href={`/brands/${brandProfileId}`}>
+                {brandLabel}
+              </Link>
+            ) : (
+              <span className="text-foreground font-medium">{brandLabel}</span>
+            )}{" "}
+            · Бюджет: {" "}
+            <span className="text-foreground font-medium">
+              {job.budgetMin}-{job.budgetMax} {CURRENCY_LABELS[job.currency]}
+            </span>{" "}
+            · Дедлайн: {" "}
+            <span className="text-foreground font-medium">
+              {job.deadlineType === "DATE" && job.deadlineDate
+                ? format(job.deadlineDate, "dd.MM.yyyy")
+                : DEADLINE_LABELS[job.deadlineType] ?? "не указан"}
+            </span>
+          </>
+        }
+        eyebrow={
+          <Link className="hover:text-foreground" href="/jobs">
+            К списку заказов
+          </Link>
+        }
+      />
+      <div className="flex flex-wrap gap-2">
+        <Badge variant="soft">{PLATFORM_LABELS[job.platform]}</Badge>
+        <Badge variant="soft">{NICHE_LABELS[job.niche]}</Badge>
+        <Badge variant="soft">{RIGHTS_PACKAGE_LABELS[job.rightsPackage]}</Badge>
+        <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+          {jobStatusBadge.label}
+        </Badge>
+      </div>
+      {isOwnerBrand ? (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <Badge variant={moderationBadge.variant} tone={moderationBadge.tone}>
+              Модерация: {moderationBadge.label}
+            </Badge>
+          </div>
+          {job.moderationStatus === "PENDING" ? (
+            <Alert variant="info" title="На модерации">
+              <p>Заказ появится в ленте после одобрения модератора.</p>
+            </Alert>
+          ) : null}
+          {job.moderationStatus === "REJECTED" ? (
+            <Alert variant="warning" title="Отклонено модерацией">
+              <div className="space-y-2 text-sm">
+                <p>{job.moderationReason ?? "Причина не указана."}</p>
+                <JobResubmitButton jobId={job.id} />
+              </div>
+            </Alert>
+          ) : null}
+          {job.moderationStatus === "APPROVED" ? (
+            <Alert variant="success" title="Одобрено">
+              <p>Заказ в ленте и доступен креаторам.</p>
+            </Alert>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-3">
+            {canEdit ? (
+              <Link href={`/dashboard/jobs/${job.id}/edit`}>
+                <Button size="sm">Редактировать</Button>
+              </Link>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Нельзя редактировать после выбора исполнителя или завершения.
+              </p>
+            )}
+            {canDuplicate ? <JobDuplicateButton jobId={job.id} /> : null}
+            {canPause || canUnpause ? <JobPauseToggle jobId={job.id} status={job.status} /> : null}
+          </div>
           </div>
         ) : null}
-      </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Описание</CardTitle>
-            <CardDescription>ТЗ и детали заказа</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
+        <SectionCard title="Описание" description="ТЗ и детали заказа" className="md:col-span-2">
+          <div className="space-y-4 text-sm">
             {job.description ? (
               <p className="whitespace-pre-wrap">{job.description}</p>
             ) : (
@@ -280,16 +273,12 @@ export default async function JobDetailPage({ params }: { params: { id: string }
                 </p>
               </div>
             </Alert>
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
 
         <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Бренд</CardTitle>
-              <CardDescription>Кто разместил заказ</CardDescription>
-            </CardHeader>
-            <CardContent className="text-sm space-y-2">
+          <SectionCard title="Бренд" description="Кто разместил заказ">
+            <div className="text-sm space-y-2">
               <div className="font-medium text-foreground">{brandLabel}</div>
               <div className="text-muted-foreground">{job.brand.brandProfile?.website ?? "-"}</div>
               {job.brand.brandProfile?.description ? (
@@ -306,15 +295,11 @@ export default async function JobDetailPage({ params }: { params: { id: string }
                   Открыть профиль бренда
                 </Link>
               ) : null}
-            </CardContent>
-          </Card>
+            </div>
+          </SectionCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Отклик</CardTitle>
-              <CardDescription>Отправьте заявку на заказ</CardDescription>
-            </CardHeader>
-            <CardContent>
+          <SectionCard title="Отклик" description="Отправьте заявку на заказ">
+            <div>
               {!user ? (
                 <Alert variant="info" title="Нужен вход">
                   <Link className="text-primary hover:underline" href={`/login?next=/jobs/${job.id}`}>
@@ -350,7 +335,11 @@ export default async function JobDetailPage({ params }: { params: { id: string }
                   <Alert variant="success" title="Вы уже откликнулись">
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground">Статус:</span>
-                      <Badge variant="soft">{STATUS_LABELS[alreadyApplied.status]}</Badge>
+                      {applicationBadge ? (
+                        <Badge variant={applicationBadge.variant} tone={applicationBadge.tone}>
+                          {applicationBadge.label}
+                        </Badge>
+                      ) : null}
                     </div>
                   </Alert>
 
@@ -372,29 +361,25 @@ export default async function JobDetailPage({ params }: { params: { id: string }
                     )
                   ) : null}
                 </div>
-              ) : (
-                <JobApplyForm jobId={job.id} />
-              )}
-            </CardContent>
-          </Card>
+                ) : (
+                  <JobApplyForm jobId={job.id} />
+                )}
+            </div>
+          </SectionCard>
 
           {isOwnerBrand ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Отклики</CardTitle>
-                <CardDescription>В MVP - пока без детальной витрины</CardDescription>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
+            <SectionCard title="Отклики" description="В MVP - пока без детальной витрины">
+              <div className="text-sm text-muted-foreground">
                 Сейчас откликов: <span className="text-foreground font-medium">{job.applications.length}</span>
                 <div className="mt-2">
                   В следующих итерациях появится страница с откликами, чатом и выбором исполнителя.
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </SectionCard>
           ) : null}
         </div>
       </div>
-    </div>
+    </Container>
   );
 }
 

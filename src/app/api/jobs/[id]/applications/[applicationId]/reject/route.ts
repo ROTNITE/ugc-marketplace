@@ -1,29 +1,27 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, mapAuthError, ok } from "@/lib/api/contract";
+import { requireRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { isBrandOwner } from "@/lib/authz";
 import { createNotification } from "@/lib/notifications";
+import { logApiError } from "@/lib/request-id";
 
 export async function POST(
   _req: Request,
   { params }: { params: { id: string; applicationId: string } },
 ) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role !== "BRAND") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  const requestId = ensureRequestId(_req);
 
   try {
+    const user = await requireRole("BRAND");
     const job = await prisma.job.findUnique({
       where: { id: params.id },
       select: { id: true, brandId: true, title: true },
     });
 
-    if (!job) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+    if (!job) return fail(404, API_ERROR_CODES.NOT_FOUND, "Заказ не найден.", requestId);
     if (!isBrandOwner(user, job.brandId)) {
-      return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+      return fail(404, API_ERROR_CODES.NOT_FOUND, "Заказ не найден.", requestId);
     }
 
     const application = await prisma.application.findUnique({
@@ -32,11 +30,13 @@ export async function POST(
     });
 
     if (!application || application.jobId !== job.id) {
-      return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+      return fail(404, API_ERROR_CODES.NOT_FOUND, "Отклик не найден.", requestId);
     }
 
     if (application.status !== "PENDING") {
-      return NextResponse.json({ error: "Отклик уже обработан." }, { status: 409 });
+      return fail(409, API_ERROR_CODES.CONFLICT, "Отклик уже обработан.", requestId, {
+        code: "APPLICATION_NOT_PENDING",
+      });
     }
 
     const updated = await prisma.application.update({
@@ -51,8 +51,14 @@ export async function POST(
       href: "/dashboard/applications",
     });
 
-    return NextResponse.json({ ok: true, application: updated });
-  } catch {
-    return NextResponse.json({ error: "Server error." }, { status: 500 });
+    return ok({ application: updated }, requestId);
+  } catch (error) {
+    const authError = mapAuthError(error, requestId);
+    if (authError) return authError;
+    logApiError("POST /api/jobs/[id]/applications/[applicationId]/reject failed", error, requestId, {
+      jobId: params.id,
+      applicationId: params.applicationId,
+    });
+    return fail(500, API_ERROR_CODES.INTERNAL_ERROR, "Не удалось отклонить отклик.", requestId);
   }
 }

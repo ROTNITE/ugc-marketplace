@@ -21,7 +21,9 @@
     "db:studio": "node scripts/with-db-url.mjs prisma studio",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
-    "bot:simulate": "tsx scripts/outbox-consumer.ts",
+    "bot:simulate": "tsx scripts/outbox-consumer.ts --once",
+    "outbox:worker": "tsx scripts/outbox-consumer.ts --watch",
+    "smoke": "tsx scripts/smoke.ts",
     "typecheck": "tsc --noEmit"
   },
   "prisma": {

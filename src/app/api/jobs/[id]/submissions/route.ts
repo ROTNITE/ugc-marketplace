@@ -1,51 +1,21 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { authOptions } from "@/lib/auth";
-import { getCreatorIds } from "@/lib/authz";
 import { emitEvent } from "@/lib/outbox";
 import { createNotification } from "@/lib/notifications";
-
-const submissionSchema = z.object({
-  note: z.string().max(1000).optional().or(z.literal("")),
-  items: z
-    .array(
-      z.object({
-        type: z.enum(["FINAL_VIDEO", "RAW_FILES", "PROJECT_FILE", "OTHER"]),
-        url: z.string().url(),
-      }),
-    )
-    .min(1),
-});
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, ok, parseJson, mapAuthError } from "@/lib/api/contract";
+import { requireJobActiveCreator } from "@/lib/authz";
+import { submissionSchema } from "@/lib/validators";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role !== "CREATOR") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-
-  const job = await prisma.job.findUnique({
-    where: { id: params.id },
-    select: { id: true, status: true, activeCreatorId: true, brandId: true },
-  });
-
-  if (!job) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-  const creatorIds = getCreatorIds(user);
-  if (!job.activeCreatorId || !creatorIds.includes(job.activeCreatorId)) {
-    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-  }
-  if (!["PAUSED", "IN_REVIEW"].includes(job.status)) {
-    return NextResponse.json({ error: "INVALID_STATUS" }, { status: 409 });
-  }
-
+  const requestId = ensureRequestId(req);
   try {
-    const body = await req.json();
-    const parsed = submissionSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: "BAD_REQUEST", details: parsed.error.flatten() }, { status: 400 });
+    const { user, job } = await requireJobActiveCreator(params.id);
+    if (!["PAUSED", "IN_REVIEW"].includes(job.status)) {
+      return fail(409, API_ERROR_CODES.CONFLICT, "Сдача недоступна для этого статуса.", requestId);
     }
+
+    const parsed = await parseJson(req, submissionSchema, requestId);
+    if ("errorResponse" in parsed) return parsed.errorResponse;
 
     const last = await prisma.submission.findFirst({
       where: { jobId: job.id },
@@ -96,8 +66,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       href: `/dashboard/jobs/${job.id}/review`,
     });
 
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ error: "Server error." }, { status: 500 });
+    return ok({ submissionId: submission.id, version: submission.version }, requestId);
+  } catch (error) {
+    const mapped = mapAuthError(error, requestId);
+    if (mapped) return mapped;
+    return fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId);
   }
 }

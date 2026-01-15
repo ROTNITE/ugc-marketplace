@@ -21,8 +21,8 @@ export function Alert({
   className?: string;
 }) {
   return (
-    <div className={cn("rounded-lg border px-4 py-3 text-sm", variants[variant], className)}>
-      {title ? <div className="font-semibold mb-1">{title}</div> : null}
+    <div className={cn("rounded-lg border px-4 py-3 text-sm leading-relaxed", variants[variant], className)}>
+      {title ? <div className="text-sm font-semibold mb-1">{title}</div> : null}
       {children}
     </div>
   );

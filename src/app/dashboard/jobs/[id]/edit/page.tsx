@@ -3,9 +3,11 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Alert } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { JobCreateWizard } from "@/components/forms/job-create-wizard";
 import { isBrandOwner } from "@/lib/authz";
+import { Container } from "@/components/ui/container";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -15,21 +17,21 @@ export default async function EditJobPage({ params }: { params: { id: string } }
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Нужен вход">
           Перейдите на страницу входа.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   if (user.role !== "BRAND") {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="warning" title="Только для брендов">
           Редактировать заказы могут только аккаунты бренда.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
@@ -73,11 +75,11 @@ export default async function EditJobPage({ params }: { params: { id: string } }
 
   if (!job || !isBrandOwner(user, job.brandId)) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="warning" title="Недоступно">
           Заказ не найден или вам недоступен.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
@@ -86,14 +88,14 @@ export default async function EditJobPage({ params }: { params: { id: string } }
 
   if (cannotEdit) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10 space-y-4">
+      <Container size="sm" className="py-10 space-y-4">
         <Link className="text-sm text-muted-foreground hover:text-foreground" href={`/jobs/${job.id}`}>
           ← Вернуться к заказу
         </Link>
         <Alert variant="warning" title="Редактирование недоступно">
           Нельзя менять заказ после выбора исполнителя или завершения сделки.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
@@ -108,15 +110,18 @@ export default async function EditJobPage({ params }: { params: { id: string } }
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10">
-      <Card>
-        <CardHeader>
-          <Link className="text-sm text-muted-foreground hover:text-foreground" href={`/jobs/${job.id}`}>
-            ← Назад к заказу
+    <Container size="md" className="py-10 space-y-6">
+      <PageHeader
+        title="Редактировать заказ"
+        description="Изменения сохранятся и могут отправить заказ на повторную модерацию."
+        eyebrow={
+          <Link className="hover:text-foreground" href={`/jobs/${job.id}`}>
+            Назад к заказу
           </Link>
-          <CardTitle>Редактировать заказ</CardTitle>
-          <CardDescription>Изменения сохранятся и могут отправить заказ на повторную модерацию.</CardDescription>
-        </CardHeader>
+        }
+      />
+      <Card>
+
         <CardContent>
           <JobCreateWizard
             mode="edit"
@@ -127,6 +132,6 @@ export default async function EditJobPage({ params }: { params: { id: string } }
           />
         </CardContent>
       </Card>
-    </div>
+    </Container>
   );
 }

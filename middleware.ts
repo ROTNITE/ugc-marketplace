@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { createRequestId, REQUEST_ID_HEADER } from "@/lib/request-id";
 
 const PUBLIC_FILE = /\.[^\/]+$/;
 
 export async function middleware(req: NextRequest) {
+  const requestId = req.headers.get(REQUEST_ID_HEADER) ?? createRequestId();
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set(REQUEST_ID_HEADER, requestId);
+
   const { pathname } = req.nextUrl;
 
   // Ignore next internals and static files
@@ -34,11 +39,15 @@ export async function middleware(req: NextRequest) {
       const url = req.nextUrl.clone();
       url.pathname = "/login";
       url.searchParams.set("next", pathname);
-      return NextResponse.redirect(url);
+      const response = NextResponse.redirect(url);
+      response.headers.set(REQUEST_ID_HEADER, requestId);
+      return response;
     }
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set(REQUEST_ID_HEADER, requestId);
+  return response;
 }
 
 export const config = {

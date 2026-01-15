@@ -8,3 +8,4 @@ out
 *.log
 prisma/dev.db
 .outbox-cursor.json
+tsconfig.tsbuildinfo

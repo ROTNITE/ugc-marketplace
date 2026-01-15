@@ -188,20 +188,21 @@ export function JobCreateWizard({
             body: JSON.stringify(payload),
           });
 
-          if (!res.ok) {
-            const data = await res.json().catch(() => null);
-            setError(data?.message ?? data?.error ?? "Не удалось создать заказ.");
-            if (data?.completeProfile) {
-              setProfileCta(data?.profileUrl ?? "/dashboard/profile");
+          const data = await res.json().catch(() => null);
+          if (!res.ok || data?.ok === false) {
+            const details = data?.error?.details;
+            setError(data?.error?.message ?? "Не удалось создать заказ.");
+            if (details?.completeProfile) {
+              setProfileCta(details?.profileUrl ?? "/dashboard/profile");
             }
             return;
           }
 
-          const data = await res.json().catch(() => null);
+          const payloadData = data?.data ?? data;
           setOk(mode === "edit" ? "Изменения сохранены" : "Заказ сохранен!");
           const redirectTarget =
             onSuccessRedirect ??
-            (mode === "edit" && jobId ? `/dashboard/jobs/${jobId}` : `/jobs/${data?.job?.id ?? ""}`);
+            (mode === "edit" && jobId ? `/dashboard/jobs/${jobId}` : `/jobs/${payloadData?.job?.id ?? ""}`);
           router.push(redirectTarget);
           router.refresh();
         })}
@@ -608,11 +609,12 @@ export function JobCreateWizard({
                       headers: { "content-type": "application/json" },
                       body: JSON.stringify(payload),
                     });
-                    if (!res.ok) {
-                      const data = await res.json().catch(() => null);
-                      setError(data?.message ?? data?.error ?? "Не удалось сохранить черновик.");
-                      if (data?.completeProfile) {
-                        setProfileCta(data?.profileUrl ?? "/dashboard/profile");
+                    const data = await res.json().catch(() => null);
+                    if (!res.ok || data?.ok === false) {
+                      const details = data?.error?.details;
+                      setError(data?.error?.message ?? "Не удалось сохранить черновик.");
+                      if (details?.completeProfile) {
+                        setProfileCta(details?.profileUrl ?? "/dashboard/profile");
                       }
                       return;
                     }

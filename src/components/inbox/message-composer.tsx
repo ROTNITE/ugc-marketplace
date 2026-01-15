@@ -30,7 +30,8 @@ export function MessageComposer({ conversationId }: { conversationId: string }) 
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось отправить сообщение.");
+        const message = data?.error?.message ?? data?.error ?? "Не удалось отправить сообщение.";
+        setError(message);
         return;
       }
 

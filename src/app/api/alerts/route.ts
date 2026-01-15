@@ -4,6 +4,11 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Platform, Niche } from "@prisma/client";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, mapAuthError, ok, parseJson } from "@/lib/api/contract";
+import { requireRole } from "@/lib/authz";
+import { logApiError } from "@/lib/request-id";
+import { buildCreatedAtCursorWhere, decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
 
 const schema = z
   .object({
@@ -19,7 +24,7 @@ const schema = z
     return data.minBudgetCents <= data.maxBudgetCents;
   }, { message: "minBudgetCents не может быть больше maxBudgetCents" });
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   const user = session?.user;
 
@@ -32,44 +37,58 @@ export async function GET() {
     );
   }
 
-  const alerts = await prisma.savedJobAlert.findMany({
-    where: { creatorProfileId: user.creatorProfileId },
-    orderBy: { createdAt: "desc" },
+  const params = Object.fromEntries(new URL(req.url).searchParams.entries());
+  const limit = parseLimit(params);
+  const cursor = decodeCursor<{ createdAt: string; id: string }>(parseCursor(params));
+  const cursorWhere = buildCreatedAtCursorWhere(cursor);
+
+  const result = await prisma.savedJobAlert.findMany({
+    where: {
+      creatorProfileId: user.creatorProfileId,
+      ...(cursorWhere ? { AND: [cursorWhere] } : {}),
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
   });
 
-  return NextResponse.json({ alerts });
+  const paged = sliceWithNextCursor(result, limit, (alert) => ({
+    id: alert.id,
+    createdAt: alert.createdAt.toISOString(),
+  }));
+
+  return NextResponse.json({ items: paged.items, nextCursor: paged.nextCursor });
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
+  const requestId = ensureRequestId(req);
+  try {
+    const user = await requireRole("CREATOR");
+    if (!user.creatorProfileId) {
+      return fail(409, API_ERROR_CODES.CONFLICT, "Заполните профиль креатора.", requestId, {
+        code: "CREATOR_PROFILE_REQUIRED",
+      });
+    }
 
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role !== "CREATOR") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-  if (!user.creatorProfileId) {
-    return NextResponse.json(
-      { error: "CREATOR_PROFILE_REQUIRED", message: "Заполните профиль креатора." },
-      { status: 409 },
-    );
+    const parsed = await parseJson(req, schema, requestId);
+    if ("errorResponse" in parsed) return parsed.errorResponse;
+
+    const alert = await prisma.savedJobAlert.create({
+      data: {
+        creatorProfileId: user.creatorProfileId,
+        name: parsed.data.name.trim(),
+        platform: parsed.data.platform ?? null,
+        niche: parsed.data.niche ?? null,
+        lang: parsed.data.lang?.trim() || null,
+        minBudgetCents: parsed.data.minBudgetCents ?? null,
+        maxBudgetCents: parsed.data.maxBudgetCents ?? null,
+      },
+    });
+
+    return ok({ alert }, requestId, { status: 201 });
+  } catch (error) {
+    const authError = mapAuthError(error, requestId);
+    if (authError) return authError;
+    logApiError("POST /api/alerts failed", error, requestId);
+    return fail(500, API_ERROR_CODES.INTERNAL_ERROR, "Не удалось создать алерт.", requestId);
   }
-
-  const payload = await req.json().catch(() => null);
-  const parsed = schema.safeParse(payload);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "BAD_REQUEST", details: parsed.error.flatten() }, { status: 400 });
-  }
-
-  const alert = await prisma.savedJobAlert.create({
-    data: {
-      creatorProfileId: user.creatorProfileId,
-      name: parsed.data.name.trim(),
-      platform: parsed.data.platform ?? null,
-      niche: parsed.data.niche ?? null,
-      lang: parsed.data.lang?.trim() || null,
-      minBudgetCents: parsed.data.minBudgetCents ?? null,
-      maxBudgetCents: parsed.data.maxBudgetCents ?? null,
-    },
-  });
-
-  return NextResponse.json({ ok: true, alert }, { status: 201 });
 }

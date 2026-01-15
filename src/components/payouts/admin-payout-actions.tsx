@@ -19,7 +19,8 @@ export function AdminPayoutActions({ payoutId }: { payoutId: string }) {
       const res = await fetch(`/api/admin/payouts/${payoutId}/approve`, { method: "POST" });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось подтвердить.");
+        const message = data?.error?.message ?? data?.error ?? "Не удалось подтвердить.";
+        setError(message);
         return;
       }
       router.refresh();
@@ -45,7 +46,8 @@ export function AdminPayoutActions({ payoutId }: { payoutId: string }) {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось отклонить.");
+        const message = data?.error?.message ?? data?.error ?? "Не удалось отклонить.";
+        setError(message);
         return;
       }
       setReason("");

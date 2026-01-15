@@ -1,59 +1,91 @@
-import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
+import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { emitEvent } from "@/lib/outbox";
 import { createNotification } from "@/lib/notifications";
-import { isBrandOwner } from "@/lib/authz";
+import { requireBrandOwnerOfJob } from "@/lib/authz";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, mapAuthError, ok } from "@/lib/api/contract";
 
-export async function POST(_req: Request, { params }: { params: { jobId: string } }) {
+export async function POST(req: Request, { params }: { params: { jobId: string } }) {
+  const requestId = ensureRequestId(req);
   const session = await getServerSession(authOptions);
   const user = session?.user;
 
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role !== "BRAND") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-
-  const job = await prisma.job.findUnique({
-    where: { id: params.jobId },
-    select: { id: true, brandId: true, activeCreatorId: true, moderationStatus: true, title: true },
-  });
-
-  if (!job) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-  if (!isBrandOwner(user, job.brandId)) {
-    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  if (!user) {
+    return fail(401, API_ERROR_CODES.UNAUTHORIZED, "Требуется авторизация.", requestId);
   }
+  const authz = await requireBrandOwnerOfJob(params.jobId, user).catch((error) => {
+    const mapped = mapAuthError(error, requestId);
+    if (mapped) return { errorResponse: mapped };
+    return { errorResponse: fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId) };
+  });
+  if ("errorResponse" in authz) return authz.errorResponse;
+  const { job } = authz;
   if (!job.activeCreatorId) {
-    return NextResponse.json({ error: "Заказ ещё не принят исполнителем." }, { status: 409 });
+    return fail(
+      409,
+      API_ERROR_CODES.PAYMENTS_STATE_ERROR,
+      "Заказ ещё не принят исполнителем.",
+      requestId,
+    );
   }
   if (job.moderationStatus !== "APPROVED") {
-    return NextResponse.json({ error: "Заказ ещё не прошёл модерацию." }, { status: 409 });
+    return fail(
+      409,
+      API_ERROR_CODES.PAYMENTS_STATE_ERROR,
+      "Заказ ещё не прошёл модерацию.",
+      requestId,
+    );
   }
 
   const escrow = await prisma.escrow.findUnique({ where: { jobId: job.id } });
-  if (!escrow) return NextResponse.json({ error: "Эскроу не найден." }, { status: 409 });
-
-  if (escrow.status !== "UNFUNDED") {
-    return NextResponse.json({ ok: true, escrow });
+  if (!escrow) {
+    return fail(409, API_ERROR_CODES.PAYMENTS_STATE_ERROR, "Эскроу не найден.", requestId);
   }
 
-  const updatedEscrow = await prisma.$transaction(async (tx) => {
-    const nextEscrow = await tx.escrow.update({
-      where: { id: escrow.id },
-      data: { status: "FUNDED", fundedAt: new Date() },
-    });
+  if (escrow.status !== "UNFUNDED") {
+    return ok({ escrow }, requestId);
+  }
 
-    await tx.ledgerEntry.create({
-      data: {
-        type: "ESCROW_FUNDED",
-        amountCents: escrow.amountCents,
-        currency: escrow.currency,
-        fromUserId: job.brandId,
-        escrowId: escrow.id,
-      },
-    });
+  let updatedEscrow;
+  try {
+    updatedEscrow = await prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const updated = await tx.escrow.updateMany({
+        where: { id: escrow.id, status: "UNFUNDED" },
+        data: { status: "FUNDED", fundedAt: now },
+      });
 
-    return nextEscrow;
-  });
+      const current = await tx.escrow.findUnique({ where: { id: escrow.id } });
+      if (!current) {
+        throw new Error("ESCROW_MISSING");
+      }
+
+      if (updated.count === 0) {
+        return current;
+      }
+
+      await tx.ledgerEntry.create({
+        data: {
+          type: "ESCROW_FUNDED",
+          amountCents: current.amountCents,
+          currency: current.currency,
+          fromUserId: job.brandId,
+          escrowId: current.id,
+          reference: `ESCROW_FUND:${current.id}`,
+        },
+      });
+
+      return current;
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return fail(409, API_ERROR_CODES.CONFLICT, "Операция уже была выполнена.", requestId);
+    }
+    return fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId);
+  }
 
   if (job.activeCreatorId) {
     await createNotification(job.activeCreatorId, {
@@ -70,5 +102,5 @@ export async function POST(_req: Request, { params }: { params: { jobId: string 
     amountCents: updatedEscrow.amountCents,
   });
 
-  return NextResponse.json({ ok: true, escrow: updatedEscrow });
+  return ok({ escrow: updatedEscrow }, requestId);
 }

@@ -94,6 +94,19 @@ export async function releaseEscrowForJob({
     if (escrow.status !== "FUNDED") return { status: "unfunded", escrowId: escrow.id };
     if (!job.activeCreatorId) return { status: "no_active_creator", escrowId: escrow.id };
 
+    const releaseReference = `ESCROW_RELEASE:${escrow.id}`;
+    const existingRelease = await client.ledgerEntry.findFirst({
+      where: { reference: releaseReference },
+      select: { id: true },
+    });
+    if (existingRelease) {
+      await client.escrow.updateMany({
+        where: { id: escrow.id, status: "FUNDED" },
+        data: { status: "RELEASED", releasedAt: new Date() },
+      });
+      return { status: "already_released", escrowId: escrow.id };
+    }
+
     const commissionCents = computeCommission(escrow.amountCents, settings.commissionBps);
     const payoutCentsEscrow = computeCreatorPayout(escrow.amountCents, settings.commissionBps);
 
@@ -131,6 +144,7 @@ export async function releaseEscrowForJob({
           fromUserId: job.brandId,
           toUserId: adminUser?.id ?? null,
           escrowId: escrow.id,
+          reference: `ESCROW_COMMISSION:${escrow.id}`,
           metadata: { source, actorUserId },
         },
       });
@@ -145,6 +159,7 @@ export async function releaseEscrowForJob({
           fromUserId: job.brandId,
           toUserId: job.activeCreatorId,
           escrowId: escrow.id,
+          reference: releaseReference,
           metadata: { source, actorUserId },
         },
       });
@@ -228,6 +243,19 @@ export async function refundEscrowForJob({
     if (escrow.status === "RELEASED") return { status: "released", escrowId: escrow.id };
     if (escrow.status !== "FUNDED") return { status: "unfunded", escrowId: escrow.id };
 
+    const refundReference = `ESCROW_REFUND:${escrow.id}`;
+    const existingRefund = await client.ledgerEntry.findFirst({
+      where: { reference: refundReference },
+      select: { id: true },
+    });
+    if (existingRefund) {
+      await client.escrow.updateMany({
+        where: { id: escrow.id, status: "FUNDED" },
+        data: { status: "REFUNDED", refundedAt: new Date() },
+      });
+      return { status: "already_refunded", escrowId: escrow.id };
+    }
+
     const now = new Date();
     const updated = await client.escrow.updateMany({
       where: { id: escrow.id, status: "FUNDED" },
@@ -248,6 +276,7 @@ export async function refundEscrowForJob({
         currency: escrow.currency,
         toUserId: job.brandId,
         escrowId: escrow.id,
+        reference: refundReference,
         metadata: { source, actorUserId, reason: reason ?? null },
       },
       select: { id: true },

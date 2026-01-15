@@ -6,12 +6,15 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Alert } from "@/components/ui/alert";
 import { MessageComposer } from "@/components/inbox/message-composer";
+import { MessageScroll } from "@/components/inbox/message-scroll";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getRoleBadge, getVerificationStatusBadge } from "@/lib/status-badges";
+import { Container } from "@/components/ui/container";
+import { buildCreatedAtCursorWhere, decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -36,17 +39,23 @@ function getDisplayName(user: Counterparty | undefined) {
   return getRoleLabel(user.role);
 }
 
-export default async function InboxConversationPage({ params }: { params: { id: string } }) {
+export default async function InboxConversationPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
   const session = await getServerSession(authOptions);
   const user = session?.user;
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Нужен вход">
           Перейдите на страницу входа.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
@@ -69,24 +78,27 @@ export default async function InboxConversationPage({ params }: { params: { id: 
 
   if (!conversation) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Диалог не найден">
           Проверьте ссылку или вернитесь в список сообщений.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   const isParticipant = conversation.participants.some((p) => p.userId === user.id);
   if (!isParticipant) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="warning" title="Недоступно">
           Этот диалог доступен только участникам.
         </Alert>
-      </div>
+      </Container>
     );
   }
+
+  const participant = conversation.participants.find((p) => p.userId === user.id);
+  const previousReadAt = participant?.lastReadAt ?? null;
 
   await prisma.conversationParticipant.upsert({
     where: { conversationId_userId: { conversationId: conversation.id, userId: user.id } },
@@ -103,10 +115,19 @@ export default async function InboxConversationPage({ params }: { params: { id: 
     data: { isRead: true },
   });
 
-  const messages = await prisma.message.findMany({
-    where: { conversationId: conversation.id },
-    orderBy: { createdAt: "desc" },
-    take: 50,
+  const messageLimit = parseLimit(searchParams, { key: "messageLimit", defaultLimit: 50 });
+  const messageCursor = decodeCursor<{ createdAt: string; id: string }>(
+    parseCursor(searchParams, "messageCursor"),
+  );
+  const messageCursorWhere = buildCreatedAtCursorWhere(messageCursor);
+
+  const messageResult = await prisma.message.findMany({
+    where: {
+      conversationId: conversation.id,
+      ...(messageCursorWhere ? { AND: [messageCursorWhere] } : {}),
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: messageLimit + 1,
     include: {
       sender: {
         select: {
@@ -120,7 +141,18 @@ export default async function InboxConversationPage({ params }: { params: { id: 
     },
   });
 
+  const messagePaged = sliceWithNextCursor(messageResult, messageLimit, (message) => ({
+    id: message.id,
+    createdAt: message.createdAt.toISOString(),
+  }));
+  const messages = messagePaged.items;
+  const nextMessageCursor = messagePaged.nextCursor;
+
   const orderedMessages = [...messages].reverse();
+  const firstUnread = previousReadAt
+    ? orderedMessages.find((message) => message.createdAt > previousReadAt)
+    : null;
+  const firstUnreadId = firstUnread?.id ?? null;
   const counterparty = conversation.participants.find((p) => p.userId !== user.id)?.user;
   const profileLink =
     counterparty?.role === "CREATOR" && counterparty.creatorProfile
@@ -136,8 +168,23 @@ export default async function InboxConversationPage({ params }: { params: { id: 
       ? getVerificationStatusBadge(counterparty.creatorProfile.verificationStatus)
       : null;
 
+  const nextParams = new URLSearchParams();
+  Object.entries(searchParams).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => nextParams.append(key, item));
+      return;
+    }
+    if (value !== undefined) {
+      nextParams.set(key, value);
+    }
+  });
+  if (nextMessageCursor) {
+    nextParams.set("messageCursor", nextMessageCursor);
+    nextParams.set("messageLimit", String(messageLimit));
+  }
+
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10 space-y-6">
+    <Container size="md" className="py-10 space-y-6">
       <PageHeader
         title={getDisplayName(counterparty)}
         description="Собеседник"
@@ -184,48 +231,81 @@ export default async function InboxConversationPage({ params }: { params: { id: 
           description="Напишите первым, чтобы начать диалог."
         />
       ) : (
-        <div className="space-y-3">
-          {orderedMessages.map((message, index) => {
-            const isMine = message.senderId === user.id;
-            const time = format(new Date(message.createdAt), "HH:mm");
-            const prev = index > 0 ? orderedMessages[index - 1] : null;
-            const showHeader = !prev || prev.senderId !== message.senderId;
-            const senderLabel = isMine ? "Вы" : getDisplayName(message.sender);
-            const senderBadge = getRoleBadge(message.sender?.role);
+        <>
+          {nextMessageCursor ? (
+            <div>
+              <Link href={`/dashboard/inbox/${conversation.id}?${nextParams.toString()}`}>
+                <Button variant="outline" size="sm">
+                  Показать предыдущие сообщения
+                </Button>
+              </Link>
+            </div>
+          ) : null}
+          <MessageScroll
+            scrollTargetId={firstUnreadId ? `message-${firstUnreadId}` : undefined}
+            scrollKey={orderedMessages.length}
+          >
+            {orderedMessages.map((message, index) => {
+              const isMine = message.senderId === user.id;
+              const time = format(new Date(message.createdAt), "HH:mm");
+              const prev = index > 0 ? orderedMessages[index - 1] : null;
+              const showHeader = !prev || prev.senderId !== message.senderId;
+              const senderLabel = isMine ? "Вы" : getDisplayName(message.sender);
+              const senderBadge = getRoleBadge(message.sender?.role);
+              const showUnreadDivider = firstUnreadId === message.id;
 
-            return (
-              <div key={message.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[80%] space-y-1 ${isMine ? "text-right" : "text-left"}`}>
-                  {showHeader ? (
-                    <div className={`flex items-center gap-2 text-xs text-muted-foreground ${isMine ? "justify-end" : "justify-start"}`}>
-                      <span className="font-medium text-foreground">{senderLabel}</span>
-                      <Badge variant={senderBadge.variant} tone={senderBadge.tone}>
-                        {senderBadge.label}
-                      </Badge>
+              return (
+                <div key={message.id}>
+                  {showUnreadDivider ? (
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="h-px flex-1 bg-border" />
+                      <span>Новые сообщения</span>
+                      <span className="h-px flex-1 bg-border" />
                     </div>
                   ) : null}
                   <div
-                    className={`rounded-lg px-3 py-2 text-sm shadow-sm ${
-                      isMine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
-                    }`}
+                    id={`message-${message.id}`}
+                    className={`flex ${isMine ? "justify-end" : "justify-start"}`}
                   >
-                    <p className="whitespace-pre-wrap break-words">{message.body}</p>
-                    <div
-                      className={`mt-1 text-[11px] ${isMine ? "text-primary-foreground/70" : "text-muted-foreground"}`}
-                    >
-                      {time}
+                    <div className={`max-w-[80%] space-y-1 ${isMine ? "text-right" : "text-left"}`}>
+                      {showHeader ? (
+                        <div
+                          className={`flex items-center gap-2 text-xs text-muted-foreground ${
+                            isMine ? "justify-end" : "justify-start"
+                          }`}
+                        >
+                          <span className="font-medium text-foreground">{senderLabel}</span>
+                          <Badge variant={senderBadge.variant} tone={senderBadge.tone}>
+                            {senderBadge.label}
+                          </Badge>
+                        </div>
+                      ) : null}
+                      <div
+                        className={`rounded-lg px-3 py-2 text-sm shadow-sm ${
+                          isMine ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap break-words">{message.body}</p>
+                        <div
+                          className={`mt-1 text-[11px] ${
+                            isMine ? "text-primary-foreground/70" : "text-muted-foreground"
+                          }`}
+                        >
+                          {time}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </MessageScroll>
+        </>
       )}
 
       <div className="border-t border-border/60 pt-4">
         <MessageComposer conversationId={conversation.id} />
       </div>
-    </div>
+    </Container>
   );
 }

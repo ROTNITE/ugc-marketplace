@@ -18,8 +18,8 @@ export function AlertRowActions({ alertId, isActive }: { alertId: string; isActi
         body: JSON.stringify({ isActive: next }),
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setError(data?.message ?? data?.error ?? "Не удалось обновить алерт.");
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось обновить алерт.");
         return;
       }
       location.reload();
@@ -37,8 +37,8 @@ export function AlertRowActions({ alertId, isActive }: { alertId: string; isActi
     try {
       const res = await fetch(`/api/alerts/${alertId}`, { method: "DELETE" });
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setError(data?.message ?? data?.error ?? "Не удалось удалить алерт.");
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось удалить алерт.");
         return;
       }
       location.reload();

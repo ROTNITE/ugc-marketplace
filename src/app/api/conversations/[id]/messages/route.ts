@@ -1,37 +1,50 @@
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { z } from "zod";
 import { emitEvent } from "@/lib/outbox";
 import { createNotification } from "@/lib/notifications";
+import { requireConversationParticipant } from "@/lib/authz";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, mapAuthError, ok, parseJson } from "@/lib/api/contract";
+import { rateLimit } from "@/lib/api/rate-limit";
 
 const schema = z.object({
   body: z.string().min(1).max(4000),
 });
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const requestId = ensureRequestId(req);
   const session = await getServerSession(authOptions);
   const user = session?.user;
 
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (!user) {
+    return fail(401, API_ERROR_CODES.UNAUTHORIZED, "Требуется авторизация.", requestId);
+  }
 
-  const conv = await prisma.conversation.findUnique({
-    where: { id: params.id },
-    include: { participants: true },
+  const rate = rateLimit(`message:${user.id}`, { windowMs: 30_000, max: 12 });
+  if (!rate.allowed) {
+    return fail(
+      429,
+      API_ERROR_CODES.RATE_LIMITED,
+      "Слишком много сообщений. Попробуйте позже.",
+      requestId,
+      { retryAfterSec: rate.retryAfterSec },
+      { headers: { "Retry-After": String(rate.retryAfterSec ?? 1) } },
+    );
+  }
+
+  const authz = await requireConversationParticipant(params.id, user).catch((error) => {
+    const mapped = mapAuthError(error, requestId);
+    if (mapped) return { errorResponse: mapped };
+    return { errorResponse: fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId) };
   });
-
-  if (!conv) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-
-  const isParticipant = conv.participants.some((p) => p.userId === user.id);
-  if (!isParticipant) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  if ("errorResponse" in authz) return authz.errorResponse;
+  const { conversation: conv } = authz;
 
   try {
-    const body = await req.json();
-    const parsed = schema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: "BAD_REQUEST", details: parsed.error.flatten() }, { status: 400 });
-    }
+    const parsed = await parseJson(req, schema, requestId);
+    if ("errorResponse" in parsed) return parsed.errorResponse;
 
     const message = await prisma.$transaction(async (tx) => {
       const created = await tx.message.create({
@@ -74,8 +87,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       ),
     );
 
-    return NextResponse.json({ ok: true, message }, { status: 201 });
+    return ok({ message }, requestId, { status: 201 });
   } catch {
-    return NextResponse.json({ error: "Server error." }, { status: 500 });
+    return fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId);
   }
 }

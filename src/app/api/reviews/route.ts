@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
 import { z } from "zod";
-import { authOptions } from "@/lib/auth";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, mapAuthError, ok, parseJson } from "@/lib/api/contract";
+import { requireUser } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { getBrandIds, getCreatorIds } from "@/lib/authz";
+import { logApiError } from "@/lib/request-id";
 
 const schema = z.object({
   jobId: z.string().uuid(),
@@ -12,17 +13,11 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-
+  const requestId = ensureRequestId(req);
   try {
-    const body = await req.json();
-    const parsed = schema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: "BAD_REQUEST", details: parsed.error.flatten() }, { status: 400 });
-    }
+    const user = await requireUser();
+    const parsed = await parseJson(req, schema, requestId);
+    if ("errorResponse" in parsed) return parsed.errorResponse;
 
     const job = await prisma.job.findUnique({
       where: { id: parsed.data.jobId },
@@ -30,7 +25,9 @@ export async function POST(req: Request) {
     });
 
     if (!job || job.status !== "COMPLETED") {
-      return NextResponse.json({ error: "JOB_NOT_COMPLETED" }, { status: 409 });
+      return fail(409, API_ERROR_CODES.CONFLICT, "Отзыв можно оставить только после завершения.", requestId, {
+        code: "JOB_NOT_COMPLETED",
+      });
     }
 
     const brandIds = getBrandIds(user);
@@ -43,7 +40,7 @@ export async function POST(req: Request) {
     }
 
     if (!toUserId) {
-      return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+      return fail(403, API_ERROR_CODES.FORBIDDEN, "Недостаточно прав.", requestId);
     }
 
     const existing = await prisma.review.findUnique({
@@ -51,7 +48,9 @@ export async function POST(req: Request) {
       select: { id: true },
     });
     if (existing) {
-      return NextResponse.json({ error: "ALREADY_REVIEWED" }, { status: 409 });
+      return fail(409, API_ERROR_CODES.CONFLICT, "Отзыв уже оставлен.", requestId, {
+        code: "ALREADY_REVIEWED",
+      });
     }
 
     const review = await prisma.review.create({
@@ -65,8 +64,11 @@ export async function POST(req: Request) {
       select: { id: true },
     });
 
-    return NextResponse.json({ ok: true, reviewId: review.id });
-  } catch {
-    return NextResponse.json({ error: "Server error." }, { status: 500 });
+    return ok({ reviewId: review.id }, requestId);
+  } catch (error) {
+    const authError = mapAuthError(error, requestId);
+    if (authError) return authError;
+    logApiError("POST /api/reviews failed", error, requestId);
+    return fail(500, API_ERROR_CODES.INTERNAL_ERROR, "Не удалось оставить отзыв.", requestId);
   }
 }

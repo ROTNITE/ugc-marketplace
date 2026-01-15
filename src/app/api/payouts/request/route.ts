@@ -1,32 +1,50 @@
-import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
+import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { emitEvent } from "@/lib/outbox";
 import { createNotification } from "@/lib/notifications";
 import { getPlatformSettings } from "@/lib/platform-settings";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, ok, parseJson } from "@/lib/api/contract";
 
 export async function POST(req: Request) {
+  const requestId = ensureRequestId(req);
   const session = await getServerSession(authOptions);
   const user = session?.user;
 
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role !== "CREATOR") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-
-  const payload = await req.json().catch(() => null);
-  const amountCents = Number(payload?.amountCents);
-  const payoutMethod = typeof payload?.payoutMethod === "string" ? payload.payoutMethod.trim() : "";
-
-  if (!Number.isFinite(amountCents) || amountCents <= 0) {
-    return NextResponse.json({ error: "Введите сумму больше нуля." }, { status: 400 });
+  if (!user) {
+    return fail(401, API_ERROR_CODES.UNAUTHORIZED, "Требуется авторизация.", requestId);
   }
+  if (user.role !== "CREATOR") {
+    return fail(403, API_ERROR_CODES.FORBIDDEN, "Недостаточно прав.", requestId);
+  }
+
+  const schema = z.object({
+    amountCents: z.number().int().positive(),
+    payoutMethod: z.string().min(1).max(500),
+  });
+  const parsed = await parseJson(req, schema, requestId);
+  if ("errorResponse" in parsed) return parsed.errorResponse;
+  const amountCents = parsed.data.amountCents;
+  const payoutMethod = parsed.data.payoutMethod.trim();
+
   if (!payoutMethod) {
-    return NextResponse.json({ error: "Укажите способ выплаты." }, { status: 400 });
+    return fail(400, API_ERROR_CODES.VALIDATION_ERROR, "Укажите способ выплаты.", requestId);
   }
 
   try {
     const settings = await getPlatformSettings();
     const result = await prisma.$transaction(async (tx) => {
+      const pending = await tx.payoutRequest.findFirst({
+        where: { userId: user.id, status: "PENDING" },
+        select: { id: true },
+      });
+      if (pending) {
+        throw new Error("PAYOUT_PENDING");
+      }
+
       const creatorProfile = await tx.creatorProfile.findUnique({
         where: { userId: user.id },
         select: { currency: true },
@@ -42,7 +60,11 @@ export async function POST(req: Request) {
         },
       });
 
-      if (wallet.balanceCents < amountCents) {
+      const updated = await tx.wallet.updateMany({
+        where: { userId: user.id, balanceCents: { gte: amountCents } },
+        data: { balanceCents: { decrement: amountCents } },
+      });
+      if (updated.count === 0) {
         throw new Error("INSUFFICIENT_FUNDS");
       }
 
@@ -56,11 +78,6 @@ export async function POST(req: Request) {
         },
       });
 
-      await tx.wallet.update({
-        where: { userId: user.id },
-        data: { balanceCents: { decrement: amountCents } },
-      });
-
       await tx.ledgerEntry.create({
         data: {
           type: "PAYOUT_REQUESTED",
@@ -68,6 +85,7 @@ export async function POST(req: Request) {
           currency: wallet.currency,
           fromUserId: user.id,
           payoutRequestId: payout.id,
+          reference: `PAYOUT_REQUEST:${payout.id}`,
         },
       });
 
@@ -96,11 +114,27 @@ export async function POST(req: Request) {
       amountCents: result.payout.amountCents,
     });
 
-    return NextResponse.json({ ok: true, payout: result.payout });
+    return ok({ payout: result.payout }, requestId);
   } catch (error) {
-    if (error instanceof Error && error.message === "INSUFFICIENT_FUNDS") {
-      return NextResponse.json({ error: "Недостаточно средств на балансе." }, { status: 409 });
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return fail(409, API_ERROR_CODES.CONFLICT, "Операция уже была выполнена.", requestId);
     }
-    return NextResponse.json({ error: "Server error." }, { status: 500 });
+    if (error instanceof Error && error.message === "INSUFFICIENT_FUNDS") {
+      return fail(
+        409,
+        API_ERROR_CODES.PAYMENTS_STATE_ERROR,
+        "Недостаточно средств на балансе.",
+        requestId,
+      );
+    }
+    if (error instanceof Error && error.message === "PAYOUT_PENDING") {
+      return fail(
+        409,
+        API_ERROR_CODES.CONFLICT,
+        "Есть незавершённая заявка на выплату.",
+        requestId,
+      );
+    }
+    return fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId);
   }
 }

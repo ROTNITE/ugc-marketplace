@@ -37,9 +37,9 @@ export function PlatformSettingsForm({ commissionBps, defaultCurrency }: Props) 
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось сохранить настройки.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось сохранить настройки.");
         return;
       }
 

@@ -1,9 +1,11 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { Alert } from "@/components/ui/alert";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { JobCreateWizard } from "@/components/forms/job-create-wizard";
 import Link from "next/link";
+import { Container } from "@/components/ui/container";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -13,38 +15,41 @@ export default async function NewJobPage() {
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Нужен вход">
           Перейдите на страницу входа.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   if (user.role !== "BRAND") {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="warning" title="Только для брендов">
           Создавать заказы могут только аккаунты бренда.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10">
-      <Card>
-        <CardHeader>
-          <CardTitle>Новый заказ</CardTitle>
-          <CardDescription>Базовый wizard. Позже сделаем более мощный конструктор брифа.</CardDescription>
-          <Link className="text-sm text-muted-foreground hover:text-foreground" href="/dashboard/jobs">
-            К списку заказов
+    <Container size="md" className="py-10 space-y-6">
+      <PageHeader
+        title="Новый заказ"
+        description="Базовый wizard. Позже сделаем более мощный конструктор брифа."
+        eyebrow={
+          <Link className="hover:text-foreground" href="/dashboard/jobs">
+            Назад к заказам
           </Link>
-        </CardHeader>
+        }
+      />
+      <Card>
+
         <CardContent>
           <JobCreateWizard />
         </CardContent>
       </Card>
-    </div>
+    </Container>
   );
 }

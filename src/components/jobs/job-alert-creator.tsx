@@ -63,10 +63,11 @@ export function JobAlertCreator() {
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setError(data?.message ?? data?.error ?? "Не удалось создать алерт.");
-        if (data?.completeProfile) {
-          setProfileCta(data?.profileUrl ?? "/dashboard/profile");
+      if (!res.ok || data?.ok === false) {
+        const details = data?.error?.details;
+        setError(data?.error?.message ?? "Не удалось создать алерт.");
+        if (details?.completeProfile) {
+          setProfileCta(details?.profileUrl ?? "/dashboard/profile");
         }
         return;
       }

@@ -29,13 +29,14 @@ export function BrandApplicationActions({
       });
       const data = await res.json().catch(() => null);
 
-      if (!res.ok) {
-        setError(data?.error ?? "Не удалось принять отклик.");
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось принять отклик.");
         return;
       }
 
-      if (data?.conversationId) {
-        router.push(`/dashboard/inbox/${data.conversationId}`);
+      const payload = data?.data ?? data;
+      if (payload?.conversationId) {
+        router.push(`/dashboard/inbox/${payload.conversationId}`);
       } else {
         router.refresh();
       }
@@ -58,8 +59,8 @@ export function BrandApplicationActions({
       });
       const data = await res.json().catch(() => null);
 
-      if (!res.ok) {
-        setError(data?.error ?? "Не удалось отклонить отклик.");
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось отклонить отклик.");
         return;
       }
 

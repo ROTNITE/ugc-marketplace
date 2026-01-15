@@ -14,30 +14,36 @@ import { getCreatorIds } from "@/lib/authz";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getApplicationStatusBadge, getJobStatusBadge } from "@/lib/status-badges";
+import { Container } from "@/components/ui/container";
+import { buildCreatedAtCursorWhere, decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function ApplicationsPage() {
+export default async function ApplicationsPage({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
   const session = await getServerSession(authOptions);
   const user = session?.user;
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Нужен вход">
           Перейдите на страницу входа.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   if (user.role !== "CREATOR") {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="warning" title="Только для креаторов">
           Эта страница доступна только аккаунтам креаторов.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
@@ -74,8 +80,15 @@ export default async function ApplicationsPage() {
 
   const creatorIds = getCreatorIds(user);
 
-  const applications = await prisma.application.findMany({
-    where: { creatorId: { in: creatorIds } },
+  const limit = parseLimit(searchParams);
+  const cursor = decodeCursor<{ createdAt: string; id: string }>(parseCursor(searchParams));
+  const cursorWhere = buildCreatedAtCursorWhere(cursor);
+
+  const result = await prisma.application.findMany({
+    where: {
+      creatorId: { in: creatorIds },
+      ...(cursorWhere ? { AND: [cursorWhere] } : {}),
+    },
     include: {
       job: {
         select: {
@@ -90,9 +103,31 @@ export default async function ApplicationsPage() {
         },
       },
     },
-    orderBy: { createdAt: "desc" },
-    take: 100,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
   });
+
+  const paged = sliceWithNextCursor(result, limit, (application) => ({
+    id: application.id,
+    createdAt: application.createdAt.toISOString(),
+  }));
+  const applications = paged.items;
+  const nextCursor = paged.nextCursor;
+
+  const nextParams = new URLSearchParams();
+  Object.entries(searchParams).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => nextParams.append(key, item));
+      return;
+    }
+    if (value !== undefined) {
+      nextParams.set(key, value);
+    }
+  });
+  if (nextCursor) {
+    nextParams.set("cursor", nextCursor);
+    nextParams.set("limit", String(limit));
+  }
 
   const acceptedJobIds = applications
     .filter((application) => application.status === "ACCEPTED")
@@ -115,7 +150,7 @@ export default async function ApplicationsPage() {
   );
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 space-y-6">
+    <Container className="py-10 space-y-6">
       <PageHeader
         title="Мои отклики"
         description="Все заявки, которые вы отправили брендам."
@@ -147,83 +182,92 @@ export default async function ApplicationsPage() {
           }
         />
       ) : (
-        <div className="grid gap-4">
-          {applications.map((application) => {
-            const job = application.job;
-            const createdAt = formatDistanceToNow(new Date(application.createdAt), { addSuffix: true, locale: ru });
-            const conversationId = conversationByJobId.get(job.id);
-            const applicationBadge = getApplicationStatusBadge(application.status);
-            const jobStatusBadge = getJobStatusBadge(application.job.status);
+        <>
+          <div className="grid gap-4">
+            {applications.map((application) => {
+              const job = application.job;
+              const createdAt = formatDistanceToNow(new Date(application.createdAt), { addSuffix: true, locale: ru });
+              const conversationId = conversationByJobId.get(job.id);
+              const applicationBadge = getApplicationStatusBadge(application.status);
+              const jobStatusBadge = getJobStatusBadge(application.job.status);
 
-            return (
-              <Card key={application.id}>
-                <CardHeader>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <CardTitle>
-                        <Link className="hover:underline" href={`/jobs/${job.id}`}>
-                          {job.title}
-                        </Link>
-                      </CardTitle>
-                      <CardDescription>
-                        {PLATFORM_LABELS[job.platform]} · {NICHE_LABELS[job.niche]}
-                      </CardDescription>
+              return (
+                <Card key={application.id}>
+                  <CardHeader>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <CardTitle>
+                          <Link className="hover:underline" href={`/jobs/${job.id}`}>
+                            {job.title}
+                          </Link>
+                        </CardTitle>
+                        <CardDescription>
+                          {PLATFORM_LABELS[job.platform]} · {NICHE_LABELS[job.niche]}
+                        </CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant={applicationBadge.variant} tone={applicationBadge.tone}>
+                          {applicationBadge.label}
+                        </Badge>
+                        <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+                          {jobStatusBadge.label}
+                        </Badge>
+                        <span>{createdAt}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Badge variant={applicationBadge.variant} tone={applicationBadge.tone}>
-                        {applicationBadge.label}
-                      </Badge>
-                      <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
-                        {jobStatusBadge.label}
-                      </Badge>
-                      <span>{createdAt}</span>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <div className="text-muted-foreground">
+                      Бюджет:{" "}
+                      <span className="text-foreground font-medium">
+                        {job.budgetMin}-{job.budgetMax} {CURRENCY_LABELS[job.currency]}
+                      </span>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="text-muted-foreground">
-                    Бюджет:{" "}
-                    <span className="text-foreground font-medium">
-                      {job.budgetMin}-{job.budgetMax} {CURRENCY_LABELS[job.currency]}
-                    </span>
-                  </div>
 
-                  {application.message ? (
-                    <div>
-                      <span className="text-muted-foreground">Сообщение:</span>{" "}
-                      <span className="text-foreground">{application.message}</span>
-                    </div>
-                  ) : null}
-
-                  {application.priceQuote ? (
-                    <div>
-                      <span className="text-muted-foreground">Ваша цена:</span>{" "}
-                      <span className="text-foreground">{application.priceQuote}</span>
-                    </div>
-                  ) : null}
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    {application.status === "PENDING" ? (
-                      <WithdrawButton applicationId={application.id} />
+                    {application.message ? (
+                      <div>
+                        <span className="text-muted-foreground">Сообщение:</span>{" "}
+                        <span className="text-foreground">{application.message}</span>
+                      </div>
                     ) : null}
-                    {application.status === "ACCEPTED" ? (
-                      conversationId ? (
-                        <Link href={`/dashboard/inbox/${conversationId}`}>
-                          <Button size="sm" variant="outline">
-                            Открыть чат
-                          </Button>
-                        </Link>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Диалог пока не создан.</span>
-                      )
+
+                    {application.priceQuote ? (
+                      <div>
+                        <span className="text-muted-foreground">Ваша цена:</span>{" "}
+                        <span className="text-foreground">{application.priceQuote}</span>
+                      </div>
                     ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {application.status === "PENDING" ? (
+                        <WithdrawButton applicationId={application.id} />
+                      ) : null}
+                      {application.status === "ACCEPTED" ? (
+                        conversationId ? (
+                          <Link href={`/dashboard/inbox/${conversationId}`}>
+                            <Button size="sm" variant="outline">
+                              Открыть чат
+                            </Button>
+                          </Link>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Диалог пока не создан.</span>
+                        )
+                      ) : null}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+          {nextCursor ? (
+            <div>
+              <Link href={`/dashboard/applications?${nextParams.toString()}`}>
+                <Button variant="outline">Показать еще</Button>
+              </Link>
+            </div>
+          ) : null}
+        </>
       )}
-    </div>
+    </Container>
   );
 }

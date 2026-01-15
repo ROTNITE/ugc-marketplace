@@ -61,8 +61,8 @@ export function DisputeMessageForm({ disputeId, mode, disabled }: Props) {
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setError(data?.message ?? data?.error ?? "Не удалось отправить сообщение.");
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось отправить сообщение.");
         return;
       }
       if (isEvidence) {

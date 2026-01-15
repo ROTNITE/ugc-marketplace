@@ -1,63 +1,70 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, mapAuthError, ok } from "@/lib/api/contract";
+import { requireUser } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { createNotification } from "@/lib/notifications";
 import { emitEvent } from "@/lib/outbox";
 import { isBrandOwner } from "@/lib/authz";
+import { logApiError } from "@/lib/request-id";
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
+  const requestId = ensureRequestId(_req);
+  try {
+    const user = await requireUser();
+    const job = await prisma.job.findUnique({
+      where: { id: params.id },
+      select: {
+        id: true,
+        brandId: true,
+        title: true,
+        moderationStatus: true,
+      },
+    });
 
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+    if (!job) return fail(404, API_ERROR_CODES.NOT_FOUND, "Заказ не найден.", requestId);
 
-  const job = await prisma.job.findUnique({
-    where: { id: params.id },
-    select: {
-      id: true,
-      brandId: true,
-      title: true,
-      moderationStatus: true,
-    },
-  });
+    const isOwner = user.role === "BRAND" && isBrandOwner(user, job.brandId);
+    const isAdmin = user.role === "ADMIN";
+    if (!isOwner && !isAdmin) return fail(404, API_ERROR_CODES.NOT_FOUND, "Заказ не найден.", requestId);
 
-  if (!job) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+    if (job.moderationStatus === "APPROVED") {
+      return fail(409, API_ERROR_CODES.CONFLICT, "Заказ уже одобрен.", requestId, {
+        code: "ALREADY_APPROVED",
+      });
+    }
 
-  const isOwner = user.role === "BRAND" && isBrandOwner(user, job.brandId);
-  const isAdmin = user.role === "ADMIN";
-  if (!isOwner && !isAdmin) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+    if (job.moderationStatus === "PENDING") {
+      return ok({ job }, requestId);
+    }
 
-  if (job.moderationStatus === "APPROVED") {
-    return NextResponse.json({ error: "ALREADY_APPROVED" }, { status: 409 });
+    const updated = await prisma.job.update({
+      where: { id: job.id },
+      data: {
+        moderationStatus: "PENDING",
+        moderationReason: null,
+        moderatedAt: null,
+        moderatedByUserId: null,
+      },
+    });
+
+    await createNotification(job.brandId, {
+      type: "MODERATION_RESUBMITTED",
+      title: "Заказ отправлен на повторную модерацию",
+      body: updated.title,
+      href: `/dashboard/jobs/${updated.id}`,
+    });
+
+    await emitEvent("JOB_MODERATION_RESUBMITTED", {
+      jobId: updated.id,
+      brandId: updated.brandId,
+      byUserId: user.id,
+    }).catch(() => {});
+
+    return ok({ job: updated }, requestId);
+  } catch (error) {
+    const authError = mapAuthError(error, requestId);
+    if (authError) return authError;
+    logApiError("POST /api/jobs/[id]/resubmit failed", error, requestId, { jobId: params.id });
+    return fail(500, API_ERROR_CODES.INTERNAL_ERROR, "Не удалось отправить на модерацию.", requestId);
   }
-
-  if (job.moderationStatus === "PENDING") {
-    return NextResponse.json({ ok: true, job });
-  }
-
-  const updated = await prisma.job.update({
-    where: { id: job.id },
-    data: {
-      moderationStatus: "PENDING",
-      moderationReason: null,
-      moderatedAt: null,
-      moderatedByUserId: null,
-    },
-  });
-
-  await createNotification(job.brandId, {
-    type: "MODERATION_RESUBMITTED",
-    title: "Заказ отправлен на повторную модерацию",
-    body: updated.title,
-    href: `/dashboard/jobs/${updated.id}`,
-  });
-
-  await emitEvent("JOB_MODERATION_RESUBMITTED", {
-    jobId: updated.id,
-    brandId: updated.brandId,
-    byUserId: user.id,
-  }).catch(() => {});
-
-  return NextResponse.json({ ok: true, job: updated });
 }

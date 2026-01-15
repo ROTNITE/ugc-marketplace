@@ -13,6 +13,7 @@ import { ClearCompletedConversationsButton } from "@/components/inbox/clear-comp
 import { Container } from "@/components/ui/container";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { buildUpdatedAtCursorWhere, decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -27,43 +28,62 @@ function getDisplayName(user: Counterparty | undefined) {
   return user.brandProfile?.companyName || user.name || user.email || "Пользователь";
 }
 
-export default async function InboxPage() {
+export default async function InboxPage({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
   const session = await getServerSession(authOptions);
   const user = session?.user;
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Нужен вход">
           Перейдите на страницу входа.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   if (user.role === "ADMIN") {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="warning" title="Недоступно">
           Раздел сообщений предназначен для брендов и креаторов.{" "}
           <Link className="text-primary hover:underline" href="/admin">
             Перейти в админку
           </Link>
         </Alert>
-      </div>
+      </Container>
     );
   }
 
-  const conversations = await prisma.conversation.findMany({
-    where: { participants: { some: { userId: user.id } } },
+  const limit = parseLimit(searchParams);
+  const cursor = decodeCursor<{ updatedAt: string; id: string }>(parseCursor(searchParams));
+  const cursorWhere = buildUpdatedAtCursorWhere(cursor);
+  const where = {
+    participants: { some: { userId: user.id } },
+    ...(cursorWhere ? { AND: [cursorWhere] } : {}),
+  };
+
+  const result = await prisma.conversation.findMany({
+    where,
     include: {
       participants: { include: { user: { include: { brandProfile: true } } } },
       job: { select: { id: true, title: true, status: true } },
       messages: { orderBy: { createdAt: "desc" }, take: 1 },
     },
-    orderBy: { updatedAt: "desc" },
-    take: 100,
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
   });
+
+  const paged = sliceWithNextCursor(result, limit, (conversation) => ({
+    id: conversation.id,
+    updatedAt: conversation.updatedAt.toISOString(),
+  }));
+  const conversations = paged.items;
+  const nextCursor = paged.nextCursor;
 
   const missingParticipants = conversations
     .filter((conversation) => !conversation.participants.some((participant) => participant.userId === user.id))
@@ -73,26 +93,46 @@ export default async function InboxPage() {
     await prisma.conversationParticipant.createMany({ data: missingParticipants, skipDuplicates: true });
   }
 
-  const unreadCounts = await Promise.all(
-    conversations.map(async (conversation) => {
+  const unreadFilters = conversations
+    .map((conversation) => {
       const participant = conversation.participants.find((item) => item.userId === user.id);
       const lastReadAt = participant?.lastReadAt ?? null;
-      const count = await prisma.message.count({
-        where: {
-          conversationId: conversation.id,
-          ...(lastReadAt ? { createdAt: { gt: lastReadAt } } : {}),
-        },
-      });
-      return [conversation.id, count] as const;
-    }),
-  );
+      return lastReadAt
+        ? { conversationId: conversation.id, createdAt: { gt: lastReadAt } }
+        : { conversationId: conversation.id };
+    });
 
-  const unreadByConversation = new Map(unreadCounts);
+  const unreadCounts = unreadFilters.length
+    ? await prisma.message.groupBy({
+        by: ["conversationId"],
+        where: { OR: unreadFilters },
+        _count: { _all: true },
+      })
+    : [];
+
+  const unreadByConversation = new Map(
+    unreadCounts.map((item) => [item.conversationId, item._count._all]),
+  );
 
   const isBrand = user.role === "BRAND";
   const hasClearable = conversations.some(
     (conversation) => conversation.job && ["COMPLETED", "CANCELED"].includes(conversation.job.status),
   );
+
+  const nextParams = new URLSearchParams();
+  Object.entries(searchParams).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => nextParams.append(key, item));
+      return;
+    }
+    if (value !== undefined) {
+      nextParams.set(key, value);
+    }
+  });
+  if (nextCursor) {
+    nextParams.set("cursor", nextCursor);
+    nextParams.set("limit", String(limit));
+  }
 
   return (
     <Container className="py-10 space-y-6" motion>
@@ -124,62 +164,71 @@ export default async function InboxPage() {
           }
         />
       ) : (
-        <div className="grid gap-4">
-          {conversations.map((conversation) => {
-            const counterparty = conversation.participants.find((p) => p.userId !== user.id)?.user;
-            const lastMessage = conversation.messages[0];
-            const lastMessageTime = lastMessage
-              ? formatDistanceToNow(new Date(lastMessage.createdAt), { addSuffix: true, locale: ru })
-              : null;
-            const unreadCount = unreadByConversation.get(conversation.id) ?? 0;
-            const isUnread = unreadCount > 0;
+        <>
+          <div className="grid gap-4">
+            {conversations.map((conversation) => {
+              const counterparty = conversation.participants.find((p) => p.userId !== user.id)?.user;
+              const lastMessage = conversation.messages[0];
+              const lastMessageTime = lastMessage
+                ? formatDistanceToNow(new Date(lastMessage.createdAt), { addSuffix: true, locale: ru })
+                : null;
+              const unreadCount = unreadByConversation.get(conversation.id) ?? 0;
+              const isUnread = unreadCount > 0;
 
-            return (
-              <Card key={conversation.id} className={isUnread ? "border-primary/50 bg-primary/5" : undefined}>
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <CardTitle>{getDisplayName(counterparty)}</CardTitle>
-                      <CardDescription>
-                        {conversation.job ? (
-                          <>
-                            Заказ:{" "}
-                            <Link className="text-primary hover:underline" href={`/jobs/${conversation.job.id}`}>
-                              {conversation.job.title}
-                            </Link>
-                          </>
-                        ) : (
-                          "Без привязки к заказу"
-                        )}
-                      </CardDescription>
+              return (
+                <Card key={conversation.id} className={isUnread ? "border-primary/50 bg-primary/5" : undefined}>
+                  <CardHeader>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <CardTitle>{getDisplayName(counterparty)}</CardTitle>
+                        <CardDescription>
+                          {conversation.job ? (
+                            <>
+                              Заказ:{" "}
+                              <Link className="text-primary hover:underline" href={`/jobs/${conversation.job.id}`}>
+                                {conversation.job.title}
+                              </Link>
+                            </>
+                          ) : (
+                            "Без привязки к заказу"
+                          )}
+                        </CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {unreadCount > 0 ? (
+                          <Badge variant="soft" className="rounded-full px-2 text-xs">
+                            {unreadCount}
+                          </Badge>
+                        ) : null}
+                        {lastMessageTime ? <span>{lastMessageTime}</span> : null}
+                        {conversation.job && ["COMPLETED", "CANCELED"].includes(conversation.job.status) ? (
+                          <ConversationDeleteButton conversationId={conversation.id} />
+                        ) : null}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      {unreadCount > 0 ? (
-                        <Badge variant="soft" className="rounded-full px-2 text-xs">
-                          {unreadCount}
-                        </Badge>
-                      ) : null}
-                      {lastMessageTime ? <span>{lastMessageTime}</span> : null}
-                      {conversation.job && ["COMPLETED", "CANCELED"].includes(conversation.job.status) ? (
-                        <ConversationDeleteButton conversationId={conversation.id} />
-                      ) : null}
+                  </CardHeader>
+                  <CardContent className="flex items-center justify-between gap-3 text-sm">
+                    <div className="text-muted-foreground flex-1">
+                      {lastMessage ? lastMessage.body : "Нет сообщений."}
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex items-center justify-between gap-3 text-sm">
-                  <div className="text-muted-foreground flex-1">
-                    {lastMessage ? lastMessage.body : "Нет сообщений."}
-                  </div>
-                  <Link href={`/dashboard/inbox/${conversation.id}`}>
-                    <Button variant="outline" size="sm">
-                      Открыть
-                    </Button>
-                  </Link>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                    <Link href={`/dashboard/inbox/${conversation.id}`}>
+                      <Button variant="outline" size="sm">
+                        Открыть
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+          {nextCursor ? (
+            <div>
+              <Link href={`/dashboard/inbox?${nextParams.toString()}`}>
+                <Button variant="outline">Показать еще</Button>
+              </Link>
+            </div>
+          ) : null}
+        </>
       )}
     </Container>
   );

@@ -42,9 +42,9 @@ export function BrandProfileForm({ initialProfile }: BrandProfileFormProps) {
         }),
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось сохранить профиль.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось сохранить профиль.");
         return;
       }
 

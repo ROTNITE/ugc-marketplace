@@ -4,8 +4,13 @@ import { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Container } from "@/components/ui/container";
+import { PageHeader } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
+import { buildCreatedAtCursorWhere, decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -19,26 +24,28 @@ export default async function AdminEventsPage({
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Нужен вход">
           Перейдите на страницу входа.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   if (user.role !== "ADMIN") {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="warning" title="Недоступно">
           Эта страница доступна только администраторам.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   const rawType = typeof searchParams.type === "string" ? searchParams.type : undefined;
   const processedFilter = typeof searchParams.processed === "string" ? searchParams.processed : undefined;
+  const limit = parseLimit(searchParams);
+  const cursor = decodeCursor<{ createdAt: string; id: string }>(parseCursor(searchParams));
   const distinctTypes = await prisma.outboxEvent.findMany({
     distinct: ["type"],
     select: { type: true },
@@ -49,23 +56,51 @@ export default async function AdminEventsPage({
   if (rawType) where.type = rawType;
   if (processedFilter === "processed") where.processedAt = { not: null };
   if (processedFilter === "unprocessed") where.processedAt = null;
+  const cursorWhere = buildCreatedAtCursorWhere(cursor);
+  if (cursorWhere) {
+    where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), cursorWhere];
+  }
 
-  const events = await prisma.outboxEvent.findMany({
+  const result = await prisma.outboxEvent.findMany({
     where,
-    orderBy: { createdAt: "desc" },
-    take: 200,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
   });
 
+  const paged = sliceWithNextCursor(result, limit, (event) => ({
+    id: event.id,
+    createdAt: event.createdAt.toISOString(),
+  }));
+  const events = paged.items;
+  const nextCursor = paged.nextCursor;
+
+  const nextParams = new URLSearchParams();
+  Object.entries(searchParams).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => nextParams.append(key, item));
+      return;
+    }
+    if (value !== undefined) {
+      nextParams.set(key, value);
+    }
+  });
+  if (nextCursor) {
+    nextParams.set("cursor", nextCursor);
+    nextParams.set("limit", String(limit));
+  }
+
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">
+    <Container size="lg" className="py-10 space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <Link className="text-sm text-muted-foreground hover:text-foreground" href="/admin">
-            Назад в админку
-          </Link>
-          <h1 className="text-2xl font-semibold tracking-tight">События</h1>
-          <p className="text-sm text-muted-foreground">Последние записи из outbox (до 200 шт.).</p>
-        </div>
+        <PageHeader
+          title="События"
+          description="События из outbox с фильтрами и пагинацией."
+          eyebrow={
+            <Link className="hover:text-foreground" href="/admin">
+              Назад в админку
+            </Link>
+          }
+        />
         <form className="flex items-center gap-2 flex-wrap" action="/admin/events" method="get">
           <label className="text-sm text-muted-foreground" htmlFor="type">
             Тип
@@ -106,38 +141,45 @@ export default async function AdminEventsPage({
       </div>
 
       {events.length === 0 ? (
-        <Alert variant="info" title="Нет событий">
-          Пока ничего не записано.
-        </Alert>
+        <EmptyState title="Нет событий" description="Пока ничего не записано." />
       ) : (
-        <div className="grid gap-3">
-          {events.map((event) => (
-            <Card key={event.id}>
-              <CardHeader className="flex flex-row items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <CardTitle className="text-base">{event.type}</CardTitle>
-                  <p className="text-xs text-muted-foreground">
-                    {event.createdAt.toISOString()}
-                  </p>
-                  {event.processedAt ? (
+        <>
+          <div className="grid gap-3">
+            {events.map((event) => (
+              <Card key={event.id}>
+                <CardHeader className="flex flex-row items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <CardTitle className="text-base">{event.type}</CardTitle>
                     <p className="text-xs text-muted-foreground">
-                      processed: {event.processedAt.toISOString()}
+                      {event.createdAt.toISOString()}
                     </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">processed: —</p>
-                  )}
-                </div>
-                <Badge variant="soft">#{event.id.slice(0, 8)}</Badge>
-              </CardHeader>
-              <CardContent>
-                <pre className="whitespace-pre-wrap break-words rounded-md bg-muted/50 p-3 text-xs">
-                  {JSON.stringify(event.payload, null, 2)}
-                </pre>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                    {event.processedAt ? (
+                      <p className="text-xs text-muted-foreground">
+                        processed: {event.processedAt.toISOString()}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">processed: -</p>
+                    )}
+                  </div>
+                  <Badge variant="soft">#{event.id.slice(0, 8)}</Badge>
+                </CardHeader>
+                <CardContent>
+                  <pre className="whitespace-pre-wrap break-words rounded-md bg-muted/50 p-3 text-xs">
+                    {JSON.stringify(event.payload, null, 2)}
+                  </pre>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          {nextCursor ? (
+            <div>
+              <Link href={`/admin/events?${nextParams.toString()}`}>
+                <Button variant="outline">Показать еще</Button>
+              </Link>
+            </div>
+          ) : null}
+        </>
       )}
-    </div>
+    </Container>
   );
 }

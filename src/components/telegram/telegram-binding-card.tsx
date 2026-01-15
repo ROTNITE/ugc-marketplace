@@ -40,12 +40,13 @@ export function TelegramBindingCard({ account }: Props) {
     try {
       const res = await fetch("/api/telegram/bind/code", { method: "POST" });
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setError(data?.message ?? "Не удалось сгенерировать код.");
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось сгенерировать код.");
         return;
       }
-      setCode(data.code ?? null);
-      setExpiresAt(data.expiresAt ?? null);
+      const payload = data?.data ?? data;
+      setCode(payload?.code ?? null);
+      setExpiresAt(payload?.expiresAt ?? null);
     } catch {
       setError("Не удалось сгенерировать код.");
     } finally {
@@ -59,9 +60,9 @@ export function TelegramBindingCard({ account }: Props) {
     setError(null);
     try {
       const res = await fetch("/api/telegram/bind/unlink", { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.message ?? "Не удалось отвязать Telegram.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось отвязать Telegram.");
         return;
       }
       router.refresh();

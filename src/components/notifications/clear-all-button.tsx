@@ -16,9 +16,9 @@ export function ClearAllNotificationsButton() {
     setError(null);
     try {
       const res = await fetch("/api/notifications/clear", { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось очистить уведомления.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось очистить уведомления.");
         return;
       }
       router.refresh();

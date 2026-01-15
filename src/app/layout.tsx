@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import { Providers } from "./providers";
 import { PublicShell } from "@/components/layout/public-shell";
@@ -19,6 +20,28 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ru" suppressHydrationWarning data-theme="light">
+      <head>
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+(() => {
+  try {
+    const stored = localStorage.getItem("theme");
+    const mode = stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const resolved = mode === "system" ? (prefersDark ? "dark" : "light") : mode;
+    const root = document.documentElement;
+    root.dataset.theme = resolved;
+    root.classList.toggle("dark", resolved === "dark");
+    root.style.colorScheme = resolved;
+  } catch {}
+})();
+`,
+          }}
+        />
+      </head>
       <body className={`${inter.variable} font-sans`}>
         <Providers>
           <PublicShell>{children}</PublicShell>

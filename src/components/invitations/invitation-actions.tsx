@@ -17,11 +17,12 @@ export function InvitationActions({ invitationId, jobId }: { invitationId: strin
     setProfileCta(null);
     try {
       const res = await fetch(`/api/invitations/${invitationId}/${action}`, { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.message ?? data?.error ?? "Не удалось выполнить действие.");
-        if (data?.completeProfile || data?.verifyProfile) {
-          setProfileCta(data?.profileUrl ?? "/dashboard/profile");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        const details = data?.error?.details;
+        setError(data?.error?.message ?? "Не удалось выполнить действие.");
+        if (details?.completeProfile || details?.verifyProfile) {
+          setProfileCta(details?.profileUrl ?? "/dashboard/profile");
         }
         return;
       }

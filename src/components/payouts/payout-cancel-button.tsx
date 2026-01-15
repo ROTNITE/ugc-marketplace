@@ -19,7 +19,8 @@ export function PayoutCancelButton({ payoutId }: { payoutId: string }) {
       const res = await fetch(`/api/payouts/${payoutId}/cancel`, { method: "POST" });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось отменить заявку.");
+        const message = data?.error?.message ?? data?.error ?? "Не удалось отменить заявку.";
+        setError(message);
         return;
       }
       router.refresh();

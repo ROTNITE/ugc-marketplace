@@ -1,45 +1,46 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
 import { z } from "zod";
-import { authOptions } from "@/lib/auth";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, mapAuthError, ok, parseJson } from "@/lib/api/contract";
+import { requireRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
+import { logApiError } from "@/lib/request-id";
 
 const schema = z.object({
   isActive: z.boolean(),
 });
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
+  const requestId = ensureRequestId(req);
+  try {
+    const user = await requireRole("CREATOR");
+    if (!user.creatorProfileId) {
+      return fail(409, API_ERROR_CODES.CONFLICT, "Заполните профиль креатора.", requestId, {
+        code: "CREATOR_PROFILE_REQUIRED",
+      });
+    }
 
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role !== "CREATOR") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-  if (!user.creatorProfileId) {
-    return NextResponse.json(
-      { error: "CREATOR_PROFILE_REQUIRED", message: "Заполните профиль креатора." },
-      { status: 409 },
-    );
+    const parsed = await parseJson(req, schema, requestId);
+    if ("errorResponse" in parsed) return parsed.errorResponse;
+
+    const alert = await prisma.savedJobAlert.findUnique({
+      where: { id: params.id },
+      select: { id: true, creatorProfileId: true },
+    });
+
+    if (!alert || alert.creatorProfileId !== user.creatorProfileId) {
+      return fail(404, API_ERROR_CODES.NOT_FOUND, "Алерт не найден.", requestId);
+    }
+
+    const updated = await prisma.savedJobAlert.update({
+      where: { id: alert.id },
+      data: { isActive: parsed.data.isActive },
+    });
+
+    return ok({ alert: updated }, requestId);
+  } catch (error) {
+    const authError = mapAuthError(error, requestId);
+    if (authError) return authError;
+    logApiError("POST /api/alerts/[id]/toggle failed", error, requestId, { alertId: params.id });
+    return fail(500, API_ERROR_CODES.INTERNAL_ERROR, "Не удалось обновить алерт.", requestId);
   }
-
-  const payload = await req.json().catch(() => null);
-  const parsed = schema.safeParse(payload);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "BAD_REQUEST", details: parsed.error.flatten() }, { status: 400 });
-  }
-
-  const alert = await prisma.savedJobAlert.findUnique({
-    where: { id: params.id },
-    select: { id: true, creatorProfileId: true },
-  });
-
-  if (!alert || alert.creatorProfileId !== user.creatorProfileId) {
-    return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-  }
-
-  const updated = await prisma.savedJobAlert.update({
-    where: { id: alert.id },
-    data: { isActive: parsed.data.isActive },
-  });
-
-  return NextResponse.json({ ok: true, alert: updated });
 }

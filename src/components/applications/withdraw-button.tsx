@@ -28,9 +28,9 @@ export function WithdrawButton({
 
     try {
       const res = await fetch(`/api/applications/${applicationId}/withdraw`, { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось отозвать отклик.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось отозвать отклик.");
         return;
       }
       router.refresh();

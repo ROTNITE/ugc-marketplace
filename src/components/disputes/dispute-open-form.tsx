@@ -39,8 +39,8 @@ export function DisputeOpenForm({ jobId, disabled }: Props) {
         body: JSON.stringify({ reason, message }),
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setError(data?.message ?? data?.error ?? "Не удалось открыть спор.");
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось открыть спор.");
         return;
       }
       setNotice("Спор открыт. Админ подключится к разбору.");

@@ -40,25 +40,29 @@ export function InviteCreatorDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobId, creatorId, message }),
       });
-        const data = await res.json().catch(() => null);
-        if (!res.ok) {
-          const errorMap: Record<string, string> = {
-            CREATOR_NOT_FOUND: "Креатор не найден. Обновите страницу и попробуйте снова.",
-            CREATOR_PROFILE_REQUIRED: "Креатор ещё не заполнил профиль и не включил публичность.",
-            CREATOR_NOT_PUBLIC: "Креатор не разрешил показывать профиль брендам.",
-            CREATOR_NOT_VERIFIED: "Креатор ещё не подтверждён, приглашение недоступно.",
-            BRAND_PROFILE_INCOMPLETE: "Заполните профиль бренда перед приглашением креатора.",
-            INVITE_ONLY_FOR_PUBLISHED: data?.message ?? "Приглашать можно только опубликованные заказы.",
-          };
-          setError(errorMap[data?.error] ?? data?.error ?? "Не удалось отправить приглашение.");
-          if (data?.completeProfile) {
-            setProfileCta(data?.profileUrl ?? "/dashboard/profile");
-          }
-          return;
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        const details = data?.error?.details;
+        const errorCode = details?.code;
+        const errorMap: Record<string, string> = {
+          CREATOR_NOT_FOUND: "Креатор не найден. Обновите страницу и попробуйте снова.",
+          CREATOR_PROFILE_REQUIRED: "Креатор ещё не заполнил профиль и не включил публичность.",
+          CREATOR_NOT_PUBLIC: "Креатор не разрешил показывать профиль брендам.",
+          CREATOR_NOT_VERIFIED: "Креатор ещё не подтверждён, приглашение недоступно.",
+          BRAND_PROFILE_INCOMPLETE: "Заполните профиль бренда перед приглашением креатора.",
+          INVITE_ONLY_FOR_PUBLISHED:
+            data?.error?.message ?? "Приглашать можно только опубликованные заказы.",
+        };
+        setError(errorMap[errorCode] ?? data?.error?.message ?? "Не удалось отправить приглашение.");
+        if (details?.completeProfile) {
+          setProfileCta(details?.profileUrl ?? "/dashboard/profile");
         }
+        return;
+      }
+      const payload = data?.data ?? data;
       setSuccess("Приглашение отправлено.");
-      if (data?.conversationId) {
-        router.prefetch(`/dashboard/inbox/${data.conversationId}`);
+      if (payload?.conversationId) {
+        router.prefetch(`/dashboard/inbox/${payload.conversationId}`);
       }
     } catch {
       setError("Не удалось отправить приглашение.");

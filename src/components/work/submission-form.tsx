@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert } from "@/components/ui/alert";
+import { submissionSchema } from "@/lib/validators";
 
 type Item = { id: string; url: string; type: string };
 
@@ -38,33 +39,37 @@ export function SubmissionForm({ jobId }: { jobId: string }) {
   }
 
   async function submit() {
+    if (isSaving) return;
+
+    const parsed = submissionSchema.safeParse({
+      note,
+      items: items.map((item) => ({ url: item.url, type: item.type })),
+    });
+
+    if (!parsed.success) {
+      const message = parsed.error.errors[0]?.message ?? "Проверьте данные формы.";
+      setError(message);
+      return;
+    }
+
+    const shouldSubmit = window.confirm("Отправить материалы на проверку? Новая версия будет создана.");
+    if (!shouldSubmit) return;
+
     setIsSaving(true);
     setError(null);
     setSuccess(false);
-
-    const payload = {
-      note,
-      items: items
-        .filter((item) => item.url.trim().length > 0)
-        .map((item) => ({ url: item.url.trim(), type: item.type })),
-    };
-
-    if (payload.items.length === 0) {
-      setError("Добавьте хотя бы одну ссылку.");
-      setIsSaving(false);
-      return;
-    }
 
     try {
       const res = await fetch(`/api/jobs/${jobId}/submissions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(parsed.data),
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось отправить материалы.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) {
+        const message = data?.error?.message ?? data?.error ?? "Не удалось отправить материалы.";
+        setError(message);
         return;
       }
 

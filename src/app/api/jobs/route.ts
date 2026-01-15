@@ -1,55 +1,72 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { jobCreateSchema } from "@/lib/validators";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
-import { parseJobListFilters, buildJobWhere, buildJobOrderBy } from "@/lib/jobs/filters";
+import { parseJobListFilters, buildJobWhere, buildJobOrderBy, buildJobCursorWhere, type JobCursor } from "@/lib/jobs/filters";
 import { emitEvent } from "@/lib/outbox";
 import { createNotification } from "@/lib/notifications";
 import { getBrandCompleteness } from "@/lib/profiles/completeness";
+import { decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, ok, parseJson, mapAuthError } from "@/lib/api/contract";
+import { requireRole } from "@/lib/authz";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const filters = parseJobListFilters(Object.fromEntries(searchParams.entries()));
+  const params = Object.fromEntries(searchParams.entries());
+  const filters = parseJobListFilters(params);
+  const limit = parseLimit(params);
+  const cursor = decodeCursor<JobCursor>(parseCursor(params));
+
+  const where = buildJobWhere(filters);
+  const cursorWhere = buildJobCursorWhere(filters, cursor);
+  if (cursorWhere) {
+    where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), cursorWhere];
+  }
 
   const jobs = await prisma.job.findMany({
-    where: buildJobWhere(filters),
+    where,
     orderBy: buildJobOrderBy(filters),
-    take: 100,
+    take: limit + 1,
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      platform: true,
+      niche: true,
+      rightsPackage: true,
+      budgetMin: true,
+      budgetMax: true,
+      currency: true,
+      deadlineDate: true,
+      deliverablesCount: true,
+      createdAt: true,
+    },
   });
 
-  return NextResponse.json({ jobs });
+  const { items, nextCursor } = sliceWithNextCursor(jobs, limit, (job) => ({
+    id: job.id,
+    createdAt: job.createdAt.toISOString(),
+    budgetMax: job.budgetMax,
+  }));
+
+  return NextResponse.json({ items, nextCursor });
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role !== "BRAND") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-
+  const requestId = ensureRequestId(req);
   try {
+    const user = await requireRole("BRAND");
     const existingUser = await prisma.user.findUnique({
       where: { id: user.id },
       select: { id: true },
     });
 
     if (!existingUser) {
-      return NextResponse.json(
-        { error: "Пользователь не найден. Выйдите и войдите снова." },
-        { status: 404 },
-      );
+      return fail(404, API_ERROR_CODES.NOT_FOUND, "Пользователь не найден.", requestId);
     }
 
-    const body = await req.json();
-    const parsed = jobCreateSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Некорректный бриф заказа.", details: parsed.error.flatten() },
-        { status: 400 },
-      );
-    }
+    const parsed = await parseJson(req, jobCreateSchema, requestId);
+    if ("errorResponse" in parsed) return parsed.errorResponse;
 
     const data = parsed.data;
     const nextStatus = data.status ?? "PUBLISHED";
@@ -64,15 +81,17 @@ export async function POST(req: Request) {
         description: brandProfile?.description ?? "",
       });
       if (completeness.missing.length > 0) {
-        return NextResponse.json(
+        return fail(
+          409,
+          API_ERROR_CODES.CONFLICT,
+          "Заполните профиль бренда перед публикацией заказа.",
+          requestId,
           {
-            error: "BRAND_PROFILE_INCOMPLETE",
-            message: "Заполните профиль бренда перед публикацией заказа.",
+            code: "BRAND_PROFILE_INCOMPLETE",
             completeProfile: true,
             missing: completeness.missing,
             profileUrl: "/dashboard/profile",
           },
-          { status: 409 },
         );
       }
     }
@@ -128,8 +147,10 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ ok: true, job }, { status: 201 });
-  } catch {
-    return NextResponse.json({ error: "Server error." }, { status: 500 });
+    return ok({ job }, requestId, { status: 201 });
+  } catch (error) {
+    const mapped = mapAuthError(error, requestId);
+    if (mapped) return mapped;
+    return fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId);
   }
 }

@@ -210,6 +210,8 @@ model User {
   disputesOpened   Dispute[] @relation("DisputesOpened")
   disputesResolved Dispute[] @relation("DisputesResolved")
   disputeMessages  DisputeMessage[] @relation("DisputeMessageAuthor")
+  telegramAccount  TelegramAccount?
+  telegramBindingRequests TelegramBindingRequest[]
 }
 
 model CreatorProfile {
@@ -232,6 +234,7 @@ model CreatorProfile {
   jobsCompleted  Int     @default(0)
 
   portfolioItems PortfolioItem[]
+  savedJobAlerts SavedJobAlert[]
   verificationCode String?
   verificationStatus VerificationStatus @default(UNVERIFIED)
   verificationReason String?
@@ -266,6 +269,63 @@ model BrandProfile {
   updatedAt DateTime @updatedAt
 }
 
+model SavedJobAlert {
+  id               String @id @default(uuid()) @db.Uuid
+  creatorProfileId String @db.Uuid
+  creatorProfile   CreatorProfile @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+
+  name         String
+  isActive     Boolean @default(true)
+  platform     Platform?
+  niche        Niche?
+  lang         String?
+  minBudgetCents Int?
+  maxBudgetCents Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  hits SavedJobAlertHit[]
+
+  @@index([creatorProfileId])
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+model SavedJobAlertHit {
+  id        String @id @default(uuid()) @db.Uuid
+  alertId   String @db.Uuid
+  alert     SavedJobAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  jobId     String @db.Uuid
+  job       Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([alertId, jobId])
+  @@index([jobId])
+  @@index([createdAt])
+}
+
+model TelegramAccount {
+  id               String @id @default(uuid()) @db.Uuid
+  userId           String @unique @db.Uuid
+  user             User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  telegramUserId   String @unique
+  telegramUsername String?
+  createdAt        DateTime @default(now())
+}
+
+model TelegramBindingRequest {
+  id        String @id @default(uuid()) @db.Uuid
+  userId    String @db.Uuid
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 model PortfolioItem {
   id        String @id @default(uuid()) @db.Uuid
   creatorId String @db.Uuid
@@ -289,6 +349,7 @@ model OutboxEvent {
   error       String?
 
   @@index([createdAt])
+  @@index([processedAt, createdAt])
   @@index([processedAt])
   @@index([type])
 }
@@ -305,6 +366,7 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@index([userId, isRead])
+  @@index([userId, isRead, createdAt])
   @@index([createdAt])
 }
 
@@ -387,16 +449,19 @@ model Job {
   submissions Submission[]
   invitations Invitation[]
   deliverables Deliverable[]
+  alertHits SavedJobAlertHit[]
   reviews Review[]
   escrow Escrow?
   dispute Dispute?
 
   @@index([status])
+  @@index([moderationStatus, status, createdAt])
   @@index([moderationStatus])
   @@index([moderationStatus, moderatedAt])
   @@index([platform])
   @@index([niche])
   @@index([brandId])
+  @@index([brandId, createdAt])
   @@index([activeCreatorId])
   @@index([createdAt])
   @@index([updatedAt])
@@ -512,6 +577,7 @@ model LedgerEntry {
   escrow       Escrow? @relation(fields: [escrowId], references: [id], onDelete: SetNull)
   payoutRequestId String? @db.Uuid
   payoutRequest PayoutRequest? @relation(fields: [payoutRequestId], references: [id], onDelete: SetNull)
+  reference    String?   @unique
   metadata     Json?
   createdAt    DateTime @default(now())
 
@@ -537,7 +603,9 @@ model PayoutRequest {
   ledgerEntries LedgerEntry[]
 
   @@index([userId])
+  @@index([userId, createdAt])
   @@index([status])
+  @@index([status, createdAt])
   @@index([createdAt])
 }
 
@@ -588,7 +656,9 @@ model Application {
 
   @@unique([jobId, creatorId])
   @@index([status])
+  @@index([jobId, status])
   @@index([creatorId])
+  @@index([creatorId, status])
   @@index([createdAt])
 }
 
@@ -636,6 +706,7 @@ model Message {
   createdAt DateTime @default(now())
 
   @@index([conversationId])
+  @@index([conversationId, createdAt])
   @@index([createdAt])
   @@index([senderId])
 }

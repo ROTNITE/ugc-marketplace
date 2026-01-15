@@ -5,6 +5,8 @@ import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlatformSettingsForm } from "@/components/admin/platform-settings-form";
 import { getPlatformSettings } from "@/lib/platform-settings";
+import { Container } from "@/components/ui/container";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -14,35 +16,37 @@ export default async function AdminSettingsPage() {
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Нужен вход">
           Перейдите на страницу входа.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   if (user.role !== "ADMIN") {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="warning" title="Недоступно">
           Эта страница доступна только администраторам.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   const settings = await getPlatformSettings();
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">
-      <div className="space-y-2">
-        <Link className="text-sm text-muted-foreground hover:text-foreground" href="/admin">
-          Назад в админку
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Настройки платформы</h1>
-        <p className="text-sm text-muted-foreground">Комиссия и валюта по умолчанию.</p>
-      </div>
+    <Container size="lg" className="py-10 space-y-6">
+      <PageHeader
+        title="Настройки платформы"
+        description="Комиссия и валюта по умолчанию."
+        eyebrow={
+          <Link className="hover:text-foreground" href="/admin">
+            Назад в админку
+          </Link>
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -56,6 +60,6 @@ export default async function AdminSettingsPage() {
           />
         </CardContent>
       </Card>
-    </div>
+    </Container>
   );
 }

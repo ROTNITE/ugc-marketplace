@@ -55,8 +55,8 @@ export function FinanceAdjustForm({ defaultUserId, defaultCurrency }: Props) {
         }),
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setError(data?.error ?? "Не удалось сохранить корректировку.");
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось сохранить корректировку.");
         return;
       }
       setSuccess("Корректировка применена.");

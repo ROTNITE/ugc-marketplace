@@ -1,19 +1,9 @@
-import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-
-function unauthorized() {
-  return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-}
-
-function requireAuth(req: Request) {
-  const header = req.headers.get("authorization");
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : null;
-  if (!token) return false;
-  const secret = process.env.OUTBOX_CONSUMER_SECRET;
-  if (!secret) return false;
-  return token === secret;
-}
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, ok } from "@/lib/api/contract";
+import { rateLimit } from "@/lib/api/rate-limit";
+import { getOutboxAuthToken } from "@/lib/outbox-auth";
 
 type Cursor = { createdAt: Date; id: string };
 
@@ -35,7 +25,23 @@ function encodeCursor(cursor: { createdAt: Date; id: string }) {
 }
 
 export async function GET(req: Request) {
-  if (!requireAuth(req)) return unauthorized();
+  const requestId = ensureRequestId(req);
+  const token = getOutboxAuthToken(req);
+  if (!token) {
+    return fail(401, API_ERROR_CODES.OUTBOX_AUTH_ERROR, "Неверный токен.", requestId);
+  }
+
+  const rate = rateLimit(`outbox:${token}`, { windowMs: 60_000, max: 60 });
+  if (!rate.allowed) {
+    return fail(
+      429,
+      API_ERROR_CODES.RATE_LIMITED,
+      "Слишком много запросов.",
+      requestId,
+      { retryAfterSec: rate.retryAfterSec },
+      { headers: { "Retry-After": String(rate.retryAfterSec ?? 1) } },
+    );
+  }
 
   const { searchParams } = new URL(req.url);
   const limitParam = Number(searchParams.get("limit") ?? "50");
@@ -43,7 +49,7 @@ export async function GET(req: Request) {
   const cursorValue = searchParams.get("cursor");
   const cursor = cursorValue ? decodeCursor(cursorValue) : null;
   if (cursorValue && !cursor) {
-    return NextResponse.json({ error: "BAD_CURSOR" }, { status: 400 });
+    return fail(400, API_ERROR_CODES.VALIDATION_ERROR, "Некорректный курсор.", requestId);
   }
 
   const where: Prisma.OutboxEventWhereInput = { processedAt: null };
@@ -57,19 +63,23 @@ export async function GET(req: Request) {
   const events = await prisma.outboxEvent.findMany({
     where,
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    take: limit,
+    take: limit + 1,
   });
 
-  const last = events[events.length - 1];
+  const items = events.slice(0, limit);
+  const last = items[items.length - 1];
   const nextCursor = last ? encodeCursor({ createdAt: last.createdAt, id: last.id }) : null;
 
-  return NextResponse.json({
-    events: events.map((e) => ({
-      id: e.id,
-      type: e.type,
-      payload: e.payload,
-      createdAt: e.createdAt,
-    })),
-    nextCursor,
-  });
+  return ok(
+    {
+      events: items.map((e) => ({
+        id: e.id,
+        type: e.type,
+        payload: e.payload,
+        createdAt: e.createdAt,
+      })),
+      nextCursor,
+    },
+    requestId,
+  );
 }

@@ -8,8 +8,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { DisputeResolveActions } from "@/components/disputes/dispute-resolve-actions";
 import { DisputeMessageForm } from "@/components/disputes/dispute-message-form";
 import { DisputeMessageList } from "@/components/disputes/dispute-message-list";
+import { Container } from "@/components/ui/container";
+import { PageHeader } from "@/components/ui/page-header";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
+import {
+  getDisputeStatusBadge,
+  getEscrowStatusBadge,
+  getJobStatusBadge,
+  getRoleBadge,
+  getSubmissionStatusBadge,
+} from "@/lib/status-badges";
 
 export const dynamic = "force-dynamic";
 
@@ -19,21 +28,21 @@ export default async function AdminDisputeDetailPage({ params }: { params: { id:
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Нужен вход">
           Перейдите на страницу входа.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   if (user.role !== "ADMIN") {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="warning" title="Недоступно">
           Эта страница доступна только администраторам.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
@@ -58,31 +67,41 @@ export default async function AdminDisputeDetailPage({ params }: { params: { id:
 
   if (!dispute) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="warning" title="Не найдено">
           Спор не найден.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   const job = dispute.job;
   const openedAt = format(dispute.createdAt, "dd.MM.yyyy HH:mm", { locale: ru });
   const resolvedAt = dispute.resolvedAt ? format(dispute.resolvedAt, "dd.MM.yyyy HH:mm", { locale: ru }) : null;
+  const disputeBadge = getDisputeStatusBadge(dispute.status);
+  const openerRoleBadge = getRoleBadge(dispute.openedByRole);
+  const jobStatusBadge = job ? getJobStatusBadge(job.status, { activeCreatorId: job.activeCreatorId }) : null;
+  const escrowBadge = job?.escrow ? getEscrowStatusBadge(job.escrow.status) : null;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">
-      <div className="space-y-2">
-        <Link className="text-sm text-muted-foreground hover:text-foreground" href="/admin/disputes">
-          Назад к списку споров
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Спор по заказу</h1>
-        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <Badge variant="soft">{dispute.status}</Badge>
-          <span>Открыт: {openedAt}</span>
-          {resolvedAt ? <span>Решён: {resolvedAt}</span> : null}
-        </div>
+    <Container size="lg" className="py-10 space-y-6">
+      <PageHeader
+        title="Спор по заказу"
+        description="Детали и действия по спору."
+        eyebrow={
+          <Link className="hover:text-foreground" href="/admin/disputes">
+            Назад к списку споров
+          </Link>
+        }
+      />
+      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        <Badge variant={disputeBadge.variant} tone={disputeBadge.tone}>
+          {disputeBadge.label}
+        </Badge>
+        <span>Открыт: {openedAt}</span>
+        {resolvedAt ? <span>Решён: {resolvedAt}</span> : null}
       </div>
+
 
       <Card>
         <CardHeader>
@@ -93,7 +112,12 @@ export default async function AdminDisputeDetailPage({ params }: { params: { id:
           <div>
             Причина: <span className="text-foreground font-medium">{dispute.reason}</span>
           </div>
-          <div className="text-muted-foreground">Роль инициатора: {dispute.openedByRole}</div>
+          <div className="text-muted-foreground flex items-center gap-2">
+            Роль инициатора:
+            <Badge variant={openerRoleBadge.variant} tone={openerRoleBadge.tone}>
+              {openerRoleBadge.label}
+            </Badge>
+          </div>
           <div className="text-muted-foreground">
             Инициатор: {dispute.openedByUser?.name ?? dispute.openedByUser?.email ?? dispute.openedByUserId}
           </div>
@@ -122,15 +146,24 @@ export default async function AdminDisputeDetailPage({ params }: { params: { id:
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="soft">{job.status}</Badge>
+              {jobStatusBadge ? (
+                <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+                  {jobStatusBadge.label}
+                </Badge>
+              ) : null}
               <Link className="text-primary hover:underline" href={`/jobs/${job.id}`}>
                 Открыть заказ
               </Link>
             </div>
             {job.escrow ? (
               <div>
-                Эскроу: <span className="text-foreground font-medium">{job.escrow.status}</span> · сумма{" "}
-                {Math.round(job.escrow.amountCents / 100)} {job.escrow.currency}
+                <span className="text-muted-foreground">Эскроу:</span>{" "}
+                {escrowBadge ? (
+                  <Badge variant={escrowBadge.variant} tone={escrowBadge.tone}>
+                    {escrowBadge.label}
+                  </Badge>
+                ) : null}{" "}
+                · сумма {Math.round(job.escrow.amountCents / 100)} {job.escrow.currency}
               </div>
             ) : (
               <div>Эскроу не создан.</div>
@@ -146,12 +179,16 @@ export default async function AdminDisputeDetailPage({ params }: { params: { id:
             <CardDescription>Последние версии материалов.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            {job.submissions.map((submission) => (
-              <div key={submission.id} className="rounded-md border border-border/60 p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium text-foreground">Версия {submission.version}</span>
-                  <Badge variant="soft">{submission.status}</Badge>
-                </div>
+            {job.submissions.map((submission) => {
+              const submissionBadge = getSubmissionStatusBadge(submission.status);
+              return (
+                <div key={submission.id} className="rounded-md border border-border/60 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-foreground">Версия {submission.version}</span>
+                    <Badge variant={submissionBadge.variant} tone={submissionBadge.tone}>
+                      {submissionBadge.label}
+                    </Badge>
+                  </div>
                 {submission.note ? (
                   <p className="mt-1 text-muted-foreground whitespace-pre-wrap">{submission.note}</p>
                 ) : null}
@@ -165,8 +202,9 @@ export default async function AdminDisputeDetailPage({ params }: { params: { id:
                     </div>
                   ))}
                 </div>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       ) : null}
@@ -192,7 +230,7 @@ export default async function AdminDisputeDetailPage({ params }: { params: { id:
           ) : null}
         </Alert>
       )}
-    </div>
+    </Container>
   );
 }
 

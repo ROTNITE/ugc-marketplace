@@ -5,11 +5,15 @@ import { ru } from "date-fns/locale";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { MarkAllReadButton } from "@/components/notifications/mark-all-read-button";
 import { ClearAllNotificationsButton } from "@/components/notifications/clear-all-button";
 import { MarkReadButton } from "@/components/notifications/mark-read-button";
+import { Container } from "@/components/ui/container";
+import { buildCreatedAtCursorWhere, decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -51,22 +55,36 @@ export default async function NotificationsPage({
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Нужен вход">
           Перейдите на страницу входа.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   const rawFilter = typeof searchParams?.filter === "string" ? searchParams.filter : "all";
   const filter = Object.keys(FILTER_LABELS).includes(rawFilter) ? (rawFilter as FilterKey) : "all";
+  const limit = parseLimit(searchParams ?? {});
+  const cursor = decodeCursor<{ createdAt: string; id: string }>(parseCursor(searchParams ?? {}));
+  const cursorWhere = buildCreatedAtCursorWhere(cursor);
+  const where = {
+    userId: user.id,
+    ...(cursorWhere ? { AND: [cursorWhere] } : {}),
+  };
 
-  const notifications = await prisma.notification.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: "desc" },
-    take: 200,
+  const result = await prisma.notification.findMany({
+    where,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
   });
+
+  const paged = sliceWithNextCursor(result, limit, (item) => ({
+    id: item.id,
+    createdAt: item.createdAt.toISOString(),
+  }));
+  const notifications = paged.items;
+  const nextCursor = paged.nextCursor;
 
   const shouldMarkRead = notifications.some((item) => !item.isRead);
   if (shouldMarkRead) {
@@ -103,8 +121,25 @@ export default async function NotificationsPage({
         ? resolvedNotifications.filter((item) => !item.isRead)
         : resolvedNotifications.filter((item) => getCategory(item.type) === filter);
 
+  const nextParams = new URLSearchParams();
+  if (searchParams) {
+    Object.entries(searchParams).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        value.forEach((item) => nextParams.append(key, item));
+        return;
+      }
+      if (value !== undefined) {
+        nextParams.set(key, value);
+      }
+    });
+  }
+  if (nextCursor) {
+    nextParams.set("cursor", nextCursor);
+    nextParams.set("limit", String(limit));
+  }
+
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">
+    <Container size="lg" className="py-10 space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link className="text-sm text-muted-foreground hover:text-foreground" href={backHref}>
@@ -142,45 +177,52 @@ export default async function NotificationsPage({
       </Card>
 
       {filteredNotifications.length === 0 ? (
-        <Alert variant="info" title="Пока пусто">
-          Уведомлений нет.
-        </Alert>
+        <EmptyState title="Пока пусто" description="Уведомлений нет." />
       ) : (
-        <div className="grid gap-3">
-          {filteredNotifications.map((item) => {
-            const category = getCategory(item.type);
-            return (
-              <Card key={item.id} className={item.isRead ? "opacity-80" : "border-primary/50"}>
-                <CardHeader className="flex flex-row items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <CardTitle className="text-base">
-                      <Link className="hover:underline" href={`/api/notifications/${item.id}/open`}>
-                        {item.title}
+        <>
+          <div className="grid gap-3">
+            {filteredNotifications.map((item) => {
+              const category = getCategory(item.type);
+              return (
+                <Card key={item.id} className={item.isRead ? "opacity-80" : "border-primary/50"}>
+                  <CardHeader className="flex flex-row items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <CardTitle className="text-base">
+                        <Link className="hover:underline" href={`/api/notifications/${item.id}/open`}>
+                          {item.title}
+                        </Link>
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(item.createdAt, { addSuffix: true, locale: ru })}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="soft">{category.toUpperCase()}</Badge>
+                      <Badge variant="soft">{item.type}</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm text-muted-foreground">
+                    {item.body ? <p className="whitespace-pre-wrap">{item.body}</p> : null}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Link className="text-primary hover:underline" href={`/api/notifications/${item.id}/open`}>
+                        Перейти
                       </Link>
-                    </CardTitle>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(item.createdAt, { addSuffix: true, locale: ru })}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="soft">{category.toUpperCase()}</Badge>
-                    <Badge variant="soft">{item.type}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm text-muted-foreground">
-                  {item.body ? <p className="whitespace-pre-wrap">{item.body}</p> : null}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Link className="text-primary hover:underline" href={`/api/notifications/${item.id}/open`}>
-                      Перейти
-                    </Link>
-                    {!item.isRead ? <MarkReadButton notificationId={item.id} /> : null}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                      {!item.isRead ? <MarkReadButton notificationId={item.id} /> : null}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+          {nextCursor ? (
+            <div>
+              <Link href={`/dashboard/notifications?${nextParams.toString()}`}>
+                <Button variant="outline">Показать еще</Button>
+              </Link>
+            </div>
+          ) : null}
+        </>
       )}
-    </div>
+    </Container>
   );
 }

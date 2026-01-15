@@ -13,30 +13,37 @@ import { getCreatorCompleteness } from "@/lib/profiles/completeness";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getInvitationStatusBadge } from "@/lib/status-badges";
+import { Container } from "@/components/ui/container";
+import { Button } from "@/components/ui/button";
+import { buildCreatedAtCursorWhere, decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function InvitationsPage() {
+export default async function InvitationsPage({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
   const session = await getServerSession(authOptions);
   const user = session?.user;
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Нужен вход">
           Перейдите на страницу входа.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   if (user.role !== "CREATOR") {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="warning" title="Только для креаторов">
           Приглашения доступны только креаторским аккаунтам.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
@@ -57,9 +64,17 @@ export default async function InvitationsPage() {
       })
     : null;
 
-  const invitations = await prisma.invitation.findMany({
-    where: { creatorId: { in: creatorIds }, status: "SENT" },
-    orderBy: { createdAt: "desc" },
+  const limit = parseLimit(searchParams);
+  const cursor = decodeCursor<{ createdAt: string; id: string }>(parseCursor(searchParams));
+  const cursorWhere = buildCreatedAtCursorWhere(cursor);
+
+  const result = await prisma.invitation.findMany({
+    where: {
+      creatorId: { in: creatorIds },
+      status: "SENT",
+      ...(cursorWhere ? { AND: [cursorWhere] } : {}),
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     include: {
       job: {
         select: { id: true, title: true },
@@ -68,11 +83,33 @@ export default async function InvitationsPage() {
         select: { brandProfile: { select: { companyName: true } }, name: true, email: true },
       },
     },
-    take: 100,
+    take: limit + 1,
   });
 
+  const paged = sliceWithNextCursor(result, limit, (inv) => ({
+    id: inv.id,
+    createdAt: inv.createdAt.toISOString(),
+  }));
+  const invitations = paged.items;
+  const nextCursor = paged.nextCursor;
+
+  const nextParams = new URLSearchParams();
+  Object.entries(searchParams).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => nextParams.append(key, item));
+      return;
+    }
+    if (value !== undefined) {
+      nextParams.set(key, value);
+    }
+  });
+  if (nextCursor) {
+    nextParams.set("cursor", nextCursor);
+    nextParams.set("limit", String(limit));
+  }
+
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">
+    <Container size="lg" className="py-10 space-y-6">
       <PageHeader
         title="Приглашения"
         description="Бренды могут приглашать вас напрямую. Примите, чтобы продолжить общение по заказу."
@@ -105,40 +142,49 @@ export default async function InvitationsPage() {
           description="Когда бренд отправит приглашение, оно появится здесь."
         />
       ) : (
-        <div className="grid gap-4">
-          {invitations.map((inv) => {
-            const brandName =
-              inv.brand.brandProfile?.companyName || inv.brand.name || inv.brand.email || "Бренд";
-            const invitationBadge = getInvitationStatusBadge(inv.status);
-            return (
-              <Card key={inv.id}>
-                <CardHeader className="flex flex-row items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <CardTitle className="text-lg">{inv.job.title}</CardTitle>
-                    <CardDescription>Бренд: {brandName}</CardDescription>
-                    <Link className="text-primary text-sm hover:underline" href={`/jobs/${inv.job.id}`}>
-                      Открыть заказ
-                    </Link>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <Badge variant={invitationBadge.variant} tone={invitationBadge.tone}>
-                      {invitationBadge.label}
-                    </Badge>
-                    <span>{formatDistanceToNow(new Date(inv.createdAt), { addSuffix: true, locale: ru })}</span>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3">
-                  {inv.message ? (
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{inv.message}</p>
-                  ) : null}
-                  <InvitationActions invitationId={inv.id} jobId={inv.job.id} />
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+        <>
+          <div className="grid gap-4">
+            {invitations.map((inv) => {
+              const brandName =
+                inv.brand.brandProfile?.companyName || inv.brand.name || inv.brand.email || "Бренд";
+              const invitationBadge = getInvitationStatusBadge(inv.status);
+              return (
+                <Card key={inv.id}>
+                  <CardHeader className="flex flex-row items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <CardTitle className="text-lg">{inv.job.title}</CardTitle>
+                      <CardDescription>Бренд: {brandName}</CardDescription>
+                      <Link className="text-primary text-sm hover:underline" href={`/jobs/${inv.job.id}`}>
+                        Открыть заказ
+                      </Link>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <Badge variant={invitationBadge.variant} tone={invitationBadge.tone}>
+                        {invitationBadge.label}
+                      </Badge>
+                      <span>{formatDistanceToNow(new Date(inv.createdAt), { addSuffix: true, locale: ru })}</span>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-3">
+                    {inv.message ? (
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">{inv.message}</p>
+                    ) : null}
+                    <InvitationActions invitationId={inv.id} jobId={inv.job.id} />
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+          {nextCursor ? (
+            <div>
+              <Link href={`/dashboard/invitations?${nextParams.toString()}`}>
+                <Button variant="outline">Показать еще</Button>
+              </Link>
+            </div>
+          ) : null}
+        </>
       )}
-    </div>
+    </Container>
   );
 }
 

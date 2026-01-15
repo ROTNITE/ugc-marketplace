@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/prisma";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export async function SiteHeader() {
   const session = await getServerSession(authOptions);
@@ -56,10 +57,11 @@ export async function SiteHeader() {
 
   const dashboardHref = user?.role === "ADMIN" ? "/admin" : "/dashboard";
   const dashboardLabel = user?.role === "ADMIN" ? "В админку" : "В кабинет";
+  const notificationsHref = user?.role === "ADMIN" ? "/admin/notifications" : "/dashboard/notifications";
 
   return (
     <header className="border-b border-border/60 bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/50">
-      <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
+      <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Link href="/" className="font-semibold tracking-tight">
             <span className="inline-flex items-center gap-2">
@@ -79,10 +81,11 @@ export async function SiteHeader() {
         </div>
 
         <div className="flex items-center gap-2">
+          <ThemeToggle className="hidden md:inline-flex" />
           {user ? (
             <>
               <Link
-                href="/dashboard/notifications"
+                href={notificationsHref}
                 className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 text-muted-foreground hover:text-foreground"
                 aria-label="Уведомления"
               >
@@ -105,17 +108,19 @@ export async function SiteHeader() {
                   </span>
                 ) : null}
               </Link>
-              <Badge variant="soft">
-                {user.role === "BRAND" ? "Бренд" : user.role === "CREATOR" ? "Креатор" : "Админ"}
-              </Badge>
-              <Link href={dashboardHref}>
-                <Button size="sm" variant="secondary">
-                  {dashboardLabel}
-                </Button>
-              </Link>
+              <div className="hidden md:flex items-center gap-2">
+                <Badge variant="soft">
+                  {user.role === "BRAND" ? "Бренд" : user.role === "CREATOR" ? "Креатор" : "Админ"}
+                </Badge>
+                <Link href={dashboardHref}>
+                  <Button size="sm" variant="secondary">
+                    {dashboardLabel}
+                  </Button>
+                </Link>
+              </div>
             </>
           ) : (
-            <>
+            <div className="hidden md:flex items-center gap-2">
               <Link href="/login">
                 <Button size="sm" variant="secondary">
                   Войти
@@ -124,8 +129,63 @@ export async function SiteHeader() {
               <Link href="/register">
                 <Button size="sm">Регистрация</Button>
               </Link>
-            </>
+            </div>
           )}
+
+          <details className="relative md:hidden">
+            <summary className="list-none cursor-pointer rounded-md border border-border/60 px-3 py-2 text-sm text-muted-foreground hover:text-foreground">
+              Меню
+            </summary>
+            <div className="absolute right-0 z-20 mt-2 w-64 rounded-lg border border-border/60 bg-background p-2 shadow-sm">
+              <nav className="flex flex-col gap-1 text-sm text-muted-foreground">
+                {navLinks.map((item) => (
+                  <Link
+                    key={item.href}
+                    className="flex items-center justify-between rounded-md px-3 py-2 hover:bg-muted/50 hover:text-foreground"
+                    href={item.href}
+                  >
+                    <span>{item.label}</span>
+                    {item.badge ? <Badge variant="soft">{item.badge}</Badge> : null}
+                  </Link>
+                ))}
+                {user ? (
+                  <>
+                    <Link
+                      className="rounded-md px-3 py-2 hover:bg-muted/50 hover:text-foreground"
+                      href={notificationsHref}
+                    >
+                      Уведомления
+                    </Link>
+                    <Link
+                      className="rounded-md px-3 py-2 hover:bg-muted/50 hover:text-foreground"
+                      href={dashboardHref}
+                    >
+                      {dashboardLabel}
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      className="rounded-md px-3 py-2 hover:bg-muted/50 hover:text-foreground"
+                      href="/login"
+                    >
+                      Войти
+                    </Link>
+                    <Link
+                      className="rounded-md px-3 py-2 hover:bg-muted/50 hover:text-foreground"
+                      href="/register"
+                    >
+                      Регистрация
+                    </Link>
+                  </>
+                )}
+              </nav>
+              <div className="border-t border-border/60 pt-2">
+                <p className="px-3 pb-2 text-xs uppercase tracking-wide text-muted-foreground">Тема</p>
+                <ThemeToggle className="w-full" />
+              </div>
+            </div>
+          </details>
         </div>
       </div>
     </header>

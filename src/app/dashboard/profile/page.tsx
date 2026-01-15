@@ -8,6 +8,8 @@ import { CreatorProfileForm } from "@/components/creator/profile-form";
 import { BrandProfileForm } from "@/components/brand/profile-form";
 import { getBrandCompleteness, getCreatorCompleteness } from "@/lib/profiles/completeness";
 import { TelegramBindingCard } from "@/components/telegram/telegram-binding-card";
+import { Container } from "@/components/ui/container";
+import { PageHeader } from "@/components/ui/page-header";
 
 type MissingItem = { key: string; label: string; ctaHref?: string };
 
@@ -67,21 +69,21 @@ export default async function CreatorProfilePage() {
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Нужен вход">
           Перейдите на страницу входа.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   if (user.role !== "CREATOR" && user.role !== "BRAND") {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="warning" title="Только для брендов и креаторов">
           Эта страница доступна только аккаунтам креаторов и брендов.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
@@ -103,16 +105,16 @@ export default async function CreatorProfilePage() {
     const completeness = getBrandCompleteness(initialProfile);
 
     return (
-      <div className="mx-auto max-w-4xl px-4 py-10 space-y-6">
-        <div>
-          <Link className="text-sm text-muted-foreground hover:text-foreground" href="/dashboard">
-            ← В кабинет
-          </Link>
-          <h1 className="text-2xl font-semibold tracking-tight">Профиль бренда</h1>
-          <p className="text-sm text-muted-foreground">
-            Заполните информацию о компании, чтобы креаторы понимали ваш контекст.
-          </p>
-        </div>
+      <Container size="md" className="py-10 space-y-6">
+        <PageHeader
+          title="Профиль бренда"
+          description="Заполните информацию о компании, чтобы креаторы понимали ваш контекст."
+          eyebrow={
+            <Link className="hover:text-foreground" href="/dashboard">
+              ← В кабинет
+            </Link>
+          }
+        />
 
         <CompletenessCard
           title="Заполненность профиля бренда"
@@ -124,7 +126,7 @@ export default async function CreatorProfilePage() {
         <TelegramBindingCard account={telegramAccount} />
 
         <BrandProfileForm initialProfile={initialProfile} />
-      </div>
+      </Container>
     );
   }
 
@@ -162,16 +164,16 @@ export default async function CreatorProfilePage() {
   });
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-10 space-y-6">
-      <div>
-        <Link className="text-sm text-muted-foreground hover:text-foreground" href="/dashboard">
-          ← В кабинет
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Профиль креатора</h1>
-        <p className="text-sm text-muted-foreground">
-          Заполните информацию, чтобы брендам было проще выбрать вас.
-        </p>
-      </div>
+    <Container size="md" className="py-10 space-y-6">
+      <PageHeader
+        title="Профиль креатора"
+        description="Заполните информацию, чтобы брендам было проще выбрать вас."
+        eyebrow={
+          <Link className="hover:text-foreground" href="/dashboard">
+            ← В кабинет
+          </Link>
+        }
+      />
 
       <CompletenessCard
         title="Заполненность профиля креатора"
@@ -183,6 +185,6 @@ export default async function CreatorProfilePage() {
       <TelegramBindingCard account={telegramAccount} />
 
       <CreatorProfileForm initialProfile={initialProfile} />
-    </div>
+    </Container>
   );
 }

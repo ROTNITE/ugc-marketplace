@@ -17,6 +17,7 @@ import { SectionCard } from "@/components/ui/section-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getBrandIds } from "@/lib/authz";
 import { getJobStatusBadge, getModerationStatusBadge } from "@/lib/status-badges";
+import { buildUpdatedAtCursorWhere, decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,34 @@ const TAB_LABELS: Record<TabKey, string> = {
   canceled: "Отменены",
 };
 
+const buildTabWhere = (tab: TabKey, brandIds: string[]) => {
+  const base = { brandId: { in: brandIds } };
+  switch (tab) {
+    case "drafts":
+      return { ...base, status: "DRAFT", moderationStatus: { not: "REJECTED" } };
+    case "moderation":
+      return { ...base, status: "PUBLISHED", moderationStatus: "PENDING" };
+    case "rejected":
+      return { ...base, moderationStatus: "REJECTED" };
+    case "published":
+      return { ...base, status: "PUBLISHED", moderationStatus: "APPROVED" };
+    case "paused":
+      return { ...base, status: "PAUSED", activeCreatorId: null };
+    case "active":
+      return {
+        ...base,
+        activeCreatorId: { not: null },
+        status: { notIn: ["COMPLETED", "CANCELED"] },
+      };
+    case "completed":
+      return { ...base, status: "COMPLETED" };
+    case "canceled":
+      return { ...base, status: "CANCELED" };
+    default:
+      return base;
+  }
+};
+
 export default async function BrandJobsPage({
   searchParams,
 }: {
@@ -51,21 +80,21 @@ export default async function BrandJobsPage({
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Нужен вход">
           Перейдите на страницу входа.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   if (user.role !== "BRAND") {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="warning" title="Недоступно">
           Эта страница доступна только брендам.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
@@ -78,8 +107,65 @@ export default async function BrandJobsPage({
 
   const brandIds = getBrandIds(user);
 
-  const jobs = await prisma.job.findMany({
-    where: { brandId: { in: brandIds } },
+  const [
+    draftsCount,
+    moderationCount,
+    rejectedCount,
+    publishedCount,
+    pausedCount,
+    activeCount,
+    completedCount,
+    canceledCount,
+  ] = await Promise.all([
+    prisma.job.count({ where: buildTabWhere("drafts", brandIds) }),
+    prisma.job.count({ where: buildTabWhere("moderation", brandIds) }),
+    prisma.job.count({ where: buildTabWhere("rejected", brandIds) }),
+    prisma.job.count({ where: buildTabWhere("published", brandIds) }),
+    prisma.job.count({ where: buildTabWhere("paused", brandIds) }),
+    prisma.job.count({ where: buildTabWhere("active", brandIds) }),
+    prisma.job.count({ where: buildTabWhere("completed", brandIds) }),
+    prisma.job.count({ where: buildTabWhere("canceled", brandIds) }),
+  ]);
+
+  const counts: Record<TabKey, number> = {
+    drafts: draftsCount,
+    moderation: moderationCount,
+    rejected: rejectedCount,
+    published: publishedCount,
+    paused: pausedCount,
+    active: activeCount,
+    completed: completedCount,
+    canceled: canceledCount,
+  };
+
+  const tabs: Array<{ key: TabKey; label: string; count: number }> = [];
+  if (counts.drafts > 0) {
+    tabs.push({ key: "drafts", label: TAB_LABELS.drafts, count: counts.drafts });
+  }
+  tabs.push(
+    { key: "moderation", label: TAB_LABELS.moderation, count: counts.moderation },
+    { key: "rejected", label: TAB_LABELS.rejected, count: counts.rejected },
+    { key: "published", label: TAB_LABELS.published, count: counts.published },
+    { key: "paused", label: TAB_LABELS.paused, count: counts.paused },
+    { key: "active", label: TAB_LABELS.active, count: counts.active },
+    { key: "completed", label: TAB_LABELS.completed, count: counts.completed },
+    { key: "canceled", label: TAB_LABELS.canceled, count: counts.canceled },
+  );
+
+  const rawTab = typeof searchParams?.tab === "string" ? searchParams.tab : undefined;
+  const activeTab = tabs.some((tab) => tab.key === rawTab) ? (rawTab as TabKey) : tabs[0]?.key ?? "published";
+  const activeCount = counts[activeTab] ?? 0;
+
+  const limit = parseLimit(searchParams ?? {}, { defaultLimit: 50 });
+  const cursor = decodeCursor<{ updatedAt: string; id: string }>(parseCursor(searchParams ?? {}));
+  const cursorWhere = buildUpdatedAtCursorWhere(cursor);
+  const listWhere = {
+    ...buildTabWhere(activeTab, brandIds),
+    ...(cursorWhere ? { AND: [cursorWhere] } : {}),
+  };
+
+  const jobsResult = await prisma.job.findMany({
+    where: listWhere,
     select: {
       id: true,
       title: true,
@@ -97,9 +183,18 @@ export default async function BrandJobsPage({
       activeCreator: { select: { id: true, name: true } },
       _count: { select: { applications: true } },
     },
-    orderBy: { updatedAt: "desc" },
-    take: 100,
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
   });
+
+  const paged = sliceWithNextCursor(jobsResult, limit, (job) => ({
+    id: job.id,
+    updatedAt: job.updatedAt.toISOString(),
+  }));
+  const jobs = paged.items;
+  const nextCursor = paged.nextCursor;
+
+  const totalJobs = Object.values(counts).reduce((sum, value) => sum + value, 0);
 
   const activeJobIds = jobs.filter((job) => job.activeCreatorId).map((job) => job.id);
   const conversations = activeJobIds.length
@@ -136,67 +231,20 @@ export default async function BrandJobsPage({
     if (tail === "review") unreadReviewsByJob.add(jobId);
   }
 
-  const matchesTab = (job: (typeof jobs)[number], tab: TabKey) => {
-    const isDraft = job.status === "DRAFT" && job.moderationStatus !== "REJECTED";
-    const isModeration = job.status === "PUBLISHED" && job.moderationStatus === "PENDING";
-    const isRejected = job.moderationStatus === "REJECTED";
-    const isPublished = job.status === "PUBLISHED" && job.moderationStatus === "APPROVED";
-    const isPaused = job.status === "PAUSED" && !job.activeCreatorId;
-    const isActive = Boolean(job.activeCreatorId) && job.status !== "COMPLETED" && job.status !== "CANCELED";
-    const isCompleted = job.status === "COMPLETED";
-    const isCanceled = job.status === "CANCELED";
-
-    switch (tab) {
-      case "drafts":
-        return isDraft;
-      case "moderation":
-        return isModeration;
-      case "rejected":
-        return isRejected;
-      case "published":
-        return isPublished;
-      case "paused":
-        return isPaused;
-      case "active":
-        return isActive;
-      case "completed":
-        return isCompleted;
-      case "canceled":
-        return isCanceled;
-      default:
-        return false;
+  const nextParams = new URLSearchParams();
+  Object.entries(searchParams ?? {}).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => nextParams.append(key, item));
+      return;
     }
-  };
-
-  const counts: Record<TabKey, number> = {
-    drafts: jobs.filter((job) => matchesTab(job, "drafts")).length,
-    moderation: jobs.filter((job) => matchesTab(job, "moderation")).length,
-    rejected: jobs.filter((job) => matchesTab(job, "rejected")).length,
-    published: jobs.filter((job) => matchesTab(job, "published")).length,
-    paused: jobs.filter((job) => matchesTab(job, "paused")).length,
-    active: jobs.filter((job) => matchesTab(job, "active")).length,
-    completed: jobs.filter((job) => matchesTab(job, "completed")).length,
-    canceled: jobs.filter((job) => matchesTab(job, "canceled")).length,
-  };
-
-  const tabs: Array<{ key: TabKey; label: string; count: number }> = [];
-  if (counts.drafts > 0) {
-    tabs.push({ key: "drafts", label: TAB_LABELS.drafts, count: counts.drafts });
+    if (value !== undefined) {
+      nextParams.set(key, value);
+    }
+  });
+  if (nextCursor) {
+    nextParams.set("cursor", nextCursor);
+    nextParams.set("limit", String(limit));
   }
-  tabs.push(
-    { key: "moderation", label: TAB_LABELS.moderation, count: counts.moderation },
-    { key: "rejected", label: TAB_LABELS.rejected, count: counts.rejected },
-    { key: "published", label: TAB_LABELS.published, count: counts.published },
-    { key: "paused", label: TAB_LABELS.paused, count: counts.paused },
-    { key: "active", label: TAB_LABELS.active, count: counts.active },
-    { key: "completed", label: TAB_LABELS.completed, count: counts.completed },
-    { key: "canceled", label: TAB_LABELS.canceled, count: counts.canceled },
-  );
-
-  const rawTab = typeof searchParams?.tab === "string" ? searchParams.tab : undefined;
-  const activeTab = tabs.some((tab) => tab.key === rawTab) ? (rawTab as TabKey) : tabs[0]?.key ?? "published";
-
-  const filteredJobs = jobs.filter((job) => matchesTab(job, activeTab));
 
   return (
     <Container className="py-10 space-y-6" motion>
@@ -242,7 +290,7 @@ export default async function BrandJobsPage({
         </div>
       </SectionCard>
 
-      {jobs.length === 0 ? (
+      {totalJobs === 0 ? (
         <EmptyState
           title="Пока нет заказов"
           description="Создайте первый заказ и опубликуйте в ленте."
@@ -252,11 +300,11 @@ export default async function BrandJobsPage({
             </Link>
           }
         />
-      ) : filteredJobs.length === 0 ? (
+      ) : activeCount === 0 ? (
         <EmptyState title="Пусто" description="В этой вкладке пока нет заказов." />
       ) : (
         <div className="grid gap-4">
-          {filteredJobs.map((job) => {
+          {jobs.map((job) => {
             const createdAt = formatDistanceToNow(job.createdAt, { addSuffix: true, locale: ru });
             const hasUnreadApplications = unreadApplicationsByJob.has(job.id);
             const hasUnreadReview = unreadReviewsByJob.has(job.id);
@@ -374,6 +422,13 @@ export default async function BrandJobsPage({
               </Card>
             );
           })}
+          {nextCursor ? (
+            <div className="flex justify-center">
+              <Link href={`/dashboard/jobs?${nextParams.toString()}`}>
+                <Button variant="outline">Показать ещё</Button>
+              </Link>
+            </div>
+          ) : null}
         </div>
       )}
     </Container>

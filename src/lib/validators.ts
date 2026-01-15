@@ -109,3 +109,13 @@ export const brandProfileSchema = z.object({
   website: z.string().url().optional().or(z.literal("")),
   description: z.string().max(1000).optional().or(z.literal("")),
 });
+
+const submissionItemSchema = z.object({
+  type: z.enum(["FINAL_VIDEO", "RAW_FILES", "PROJECT_FILE", "OTHER"]),
+  url: z.string().trim().url("Укажите корректную ссылку."),
+});
+
+export const submissionSchema = z.object({
+  note: z.string().trim().max(1000).optional().or(z.literal("")),
+  items: z.array(submissionItemSchema).min(1, "Добавьте хотя бы одну ссылку."),
+});

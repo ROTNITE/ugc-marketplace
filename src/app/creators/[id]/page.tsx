@@ -3,9 +3,11 @@ import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Container } from "@/components/ui/container";
+import { PageHeader } from "@/components/ui/page-header";
 import { PLATFORM_LABELS, NICHE_LABELS, CURRENCY_LABELS } from "@/lib/constants";
 import { InviteCreatorDialog } from "@/components/creators/invite-creator-dialog";
 import { getBrandIds } from "@/lib/authz";
@@ -80,21 +82,24 @@ export default async function CreatorProfilePage({ params }: { params: { id: str
     creator.verificationStatus === "VERIFIED" ? getVerificationStatusBadge(creator.verificationStatus) : null;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">
-      <Link className="text-sm text-muted-foreground hover:text-foreground" href="/creators">
-        ← К каталогу креаторов
-      </Link>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">{name}</h1>
-          <p className="text-sm text-muted-foreground">Публичный профиль креатора</p>
-        </div>
-        {verificationBadge ? (
-          <Badge variant={verificationBadge.variant} tone={verificationBadge.tone}>
-            {verificationBadge.label}
-          </Badge>
-        ) : null}
-      </div>
+    <Container size="lg" className="py-10 space-y-6">
+      <PageHeader
+        title={name}
+        description="Публичный профиль креатора"
+        eyebrow={
+          <Link className="hover:text-foreground" href="/creators">
+            К каталогу креаторов
+          </Link>
+        }
+        actions={
+          verificationBadge ? (
+            <Badge variant={verificationBadge.variant} tone={verificationBadge.tone}>
+              {verificationBadge.label}
+            </Badge>
+          ) : null
+        }
+      />
+
 
       {creator.bio ? (
         <Card>
@@ -152,9 +157,7 @@ export default async function CreatorProfilePage({ params }: { params: { id: str
         </CardHeader>
         <CardContent className="space-y-2">
           {creator.portfolioItems.length === 0 ? (
-            <Alert variant="info" title="Пока пусто">
-              Креатор ещё не добавил ссылки на работы.
-            </Alert>
+            <EmptyState title="Пока пусто" description="Креатор ещё не добавил ссылки на работы." />
           ) : (
             creator.portfolioItems.map((item) => (
               <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2">
@@ -178,9 +181,7 @@ export default async function CreatorProfilePage({ params }: { params: { id: str
         </CardHeader>
         <CardContent className="space-y-3">
           {recentReviews.length === 0 ? (
-            <Alert variant="info" title="Пока без отзывов">
-              Отзывы появятся после завершенных заказов.
-            </Alert>
+            <EmptyState title="Пока без отзывов" description="Отзывы появятся после завершенных заказов." />
           ) : (
             recentReviews.map((review) => (
               <div key={review.id} className="rounded-md border border-border/60 bg-muted/30 p-3 text-sm">
@@ -197,6 +198,6 @@ export default async function CreatorProfilePage({ params }: { params: { id: str
       </Card>
 
       {isBrand ? <InviteCreatorDialog creatorId={creator.userId} jobs={brandJobs} /> : null}
-    </div>
+    </Container>
   );
 }

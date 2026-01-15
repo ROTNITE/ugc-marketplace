@@ -5,6 +5,7 @@ import { ru } from "date-fns/locale";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ReviewActions } from "@/components/work/review-actions";
@@ -18,6 +19,8 @@ import { DisputeMessageForm } from "@/components/disputes/dispute-message-form";
 import { DisputeMessageList } from "@/components/disputes/dispute-message-list";
 import { isBrandOwner } from "@/lib/authz";
 import { getEscrowStatusBadge, getJobStatusBadge, getSubmissionStatusBadge } from "@/lib/status-badges";
+import { Container } from "@/components/ui/container";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const dynamic = "force-dynamic";
 
@@ -27,21 +30,21 @@ export default async function JobReviewPage({ params }: { params: { id: string }
 
   if (!user) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Нужен вход">
           Перейдите на страницу входа.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   if (user.role !== "BRAND") {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="warning" title="Только для брендов">
           Эта страница доступна только аккаунтам брендов.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
@@ -65,11 +68,11 @@ export default async function JobReviewPage({ params }: { params: { id: string }
 
   if (!job || !isBrandOwner(user, job.brandId)) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="warning" title="Недоступно">
           Заказ не найден или принадлежит другому бренду.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
@@ -98,27 +101,30 @@ export default async function JobReviewPage({ params }: { params: { id: string }
   const escrowStatusBadge = escrow ? getEscrowStatusBadge(escrow.status) : null;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <Link className="text-sm text-muted-foreground hover:text-foreground" href="/dashboard/jobs">
+    <Container size="lg" className="py-10 space-y-6">
+      <PageHeader
+        title={job.title}
+        description={`Статус: ${jobStatusBadge.label}`}
+        eyebrow={
+          <Link className="hover:text-foreground" href="/dashboard/jobs">
             Назад к заказам
           </Link>
-          <h1 className="text-2xl font-semibold tracking-tight">{job.title}</h1>
-          <p className="text-sm text-muted-foreground">Статус: {jobStatusBadge.label}</p>
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <Link className="text-primary hover:underline" href={`/dashboard/jobs/${job.id}/applications`}>
-              Отклики
-            </Link>
-            <Link className="text-primary hover:underline" href={`/jobs/${job.id}`}>
-              Открыть заказ
-            </Link>
-          </div>
-        </div>
-        <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
-          {jobStatusBadge.label}
-        </Badge>
+        }
+        actions={
+          <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+            {jobStatusBadge.label}
+          </Badge>
+        }
+      />
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <Link className="text-primary hover:underline" href={`/dashboard/jobs/${job.id}/applications`}>
+          Отклики
+        </Link>
+        <Link className="text-primary hover:underline" href={`/jobs/${job.id}`}>
+          Открыть заказ
+        </Link>
       </div>
+
 
       {disputeOpen ? (
         <Alert variant="warning" title="Идёт спор">
@@ -210,9 +216,7 @@ export default async function JobReviewPage({ params }: { params: { id: string }
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           {job.submissions.length === 0 ? (
-            <Alert variant="info" title="Пока нет сдач">
-              Ожидаем первую версию от креатора.
-            </Alert>
+            <EmptyState title="Пока нет сдач" description="Ожидаем первую версию от креатора." />
           ) : (
             job.submissions.map((submission) => (
               <div key={submission.id} className="rounded-md border border-border/60 p-3">
@@ -266,9 +270,7 @@ export default async function JobReviewPage({ params }: { params: { id: string }
           </CardContent>
         </Card>
       ) : (
-        <Alert variant="info" title="Нет сдачи для проверки">
-          Ожидаем новую версию от креатора.
-        </Alert>
+        <EmptyState title="Нет сдачи для проверки" description="Ожидаем новую версию от креатора." />
       )}
 
       {canOpenDispute ? (
@@ -282,6 +284,6 @@ export default async function JobReviewPage({ params }: { params: { id: string }
           </CardContent>
         </Card>
       ) : null}
-    </div>
+    </Container>
   );
 }

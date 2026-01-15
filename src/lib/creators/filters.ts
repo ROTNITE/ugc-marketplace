@@ -11,6 +11,13 @@ export type CreatorListFilters = {
   sort: "recent" | "price_asc" | "price_desc" | "rating_desc";
 };
 
+export type CreatorCursor = {
+  id: string;
+  updatedAt: string;
+  pricePerVideo?: number | null;
+  ratingAvg?: number | null;
+};
+
 function parseNumber(value: string | null | undefined) {
   if (!value) return undefined;
   const num = Number(value);
@@ -82,6 +89,12 @@ export function buildCreatorWhere(
     if (filters.maxPrice !== undefined) where.pricePerVideo.lte = filters.maxPrice;
   }
 
+  if (filters.sort === "price_asc" || filters.sort === "price_desc") {
+    const existing =
+      typeof where.pricePerVideo === "object" && where.pricePerVideo !== null ? where.pricePerVideo : {};
+    where.pricePerVideo = { ...existing, not: null };
+  }
+
   return where;
 }
 
@@ -90,13 +103,54 @@ export function buildCreatorOrderBy(
 ): Prisma.CreatorProfileOrderByWithRelationInput[] {
   switch (filters.sort) {
     case "price_asc":
-      return [{ pricePerVideo: "asc" }, { updatedAt: "desc" }];
+      return [{ pricePerVideo: "asc" }, { updatedAt: "desc" }, { id: "desc" }];
     case "price_desc":
-      return [{ pricePerVideo: "desc" }, { updatedAt: "desc" }];
+      return [{ pricePerVideo: "desc" }, { updatedAt: "desc" }, { id: "desc" }];
     case "rating_desc":
-      return [{ ratingAvg: "desc" }, { updatedAt: "desc" }];
+      return [{ ratingAvg: "desc" }, { updatedAt: "desc" }, { id: "desc" }];
     case "recent":
     default:
-      return [{ updatedAt: "desc" }];
+      return [{ updatedAt: "desc" }, { id: "desc" }];
+  }
+}
+
+export function buildCreatorCursorWhere(filters: CreatorListFilters, cursor: CreatorCursor | null) {
+  if (!cursor) return null;
+  const updatedAt = new Date(cursor.updatedAt);
+  if (Number.isNaN(updatedAt.getTime())) return null;
+
+  switch (filters.sort) {
+    case "price_asc":
+      return {
+        OR: [
+          { pricePerVideo: { gt: cursor.pricePerVideo ?? 0 } },
+          { pricePerVideo: cursor.pricePerVideo ?? 0, updatedAt: { lt: updatedAt } },
+          { pricePerVideo: cursor.pricePerVideo ?? 0, updatedAt, id: { lt: cursor.id } },
+        ],
+      };
+    case "price_desc":
+      return {
+        OR: [
+          { pricePerVideo: { lt: cursor.pricePerVideo ?? 0 } },
+          { pricePerVideo: cursor.pricePerVideo ?? 0, updatedAt: { lt: updatedAt } },
+          { pricePerVideo: cursor.pricePerVideo ?? 0, updatedAt, id: { lt: cursor.id } },
+        ],
+      };
+    case "rating_desc":
+      return {
+        OR: [
+          { ratingAvg: { lt: cursor.ratingAvg ?? 0 } },
+          { ratingAvg: cursor.ratingAvg ?? 0, updatedAt: { lt: updatedAt } },
+          { ratingAvg: cursor.ratingAvg ?? 0, updatedAt, id: { lt: cursor.id } },
+        ],
+      };
+    case "recent":
+    default:
+      return {
+        OR: [
+          { updatedAt: { lt: updatedAt } },
+          { updatedAt, id: { lt: cursor.id } },
+        ],
+      };
   }
 }

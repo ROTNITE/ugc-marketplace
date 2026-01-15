@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
 import { z } from "zod";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { emitEvent } from "@/lib/outbox";
-import { getBrandIds } from "@/lib/authz";
+import { getBrandIds, requireRole } from "@/lib/authz";
 import { getBrandCompleteness } from "@/lib/profiles/completeness";
+import { logApiError } from "@/lib/request-id";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, ok, parseJson, mapAuthError } from "@/lib/api/contract";
 
 const schema = z.object({
   jobId: z.string().uuid(),
@@ -14,24 +14,21 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role !== "BRAND") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-  if (!user.brandProfileId) {
-    return NextResponse.json(
-      { error: "BRAND_PROFILE_REQUIRED", message: "Заполните профиль бренда перед приглашением." },
-      { status: 409 },
-    );
-  }
-
+  const requestId = ensureRequestId(req);
   try {
-    const body = await req.json();
-    const parsed = schema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: "BAD_REQUEST", details: parsed.error.flatten() }, { status: 400 });
+    const user = await requireRole("BRAND");
+    if (!user.brandProfileId) {
+      return fail(
+        409,
+        API_ERROR_CODES.CONFLICT,
+        "Заполните профиль бренда перед приглашением.",
+        requestId,
+        { code: "BRAND_PROFILE_REQUIRED", profileUrl: "/dashboard/profile" },
+      );
     }
+
+    const parsed = await parseJson(req, schema, requestId);
+    if ("errorResponse" in parsed) return parsed.errorResponse;
 
     const brandProfile = await prisma.brandProfile.findUnique({
       where: { userId: user.id },
@@ -43,15 +40,17 @@ export async function POST(req: Request) {
     });
 
     if (brandCompleteness.missing.length > 0) {
-      return NextResponse.json(
+      return fail(
+        409,
+        API_ERROR_CODES.CONFLICT,
+        "Заполните профиль бренда перед приглашением креатора.",
+        requestId,
         {
-          error: "BRAND_PROFILE_INCOMPLETE",
-          message: "Заполните профиль бренда перед приглашением креатора.",
+          code: "BRAND_PROFILE_INCOMPLETE",
           completeProfile: true,
           missing: brandCompleteness.missing,
           profileUrl: "/dashboard/profile",
         },
-        { status: 409 },
       );
     }
 
@@ -62,17 +61,17 @@ export async function POST(req: Request) {
 
     const brandIds = getBrandIds(user);
     if (!job || !brandIds.includes(job.brandId)) {
-      return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+      return fail(404, API_ERROR_CODES.NOT_FOUND, "Заказ не найден.", requestId);
     }
 
     // допускаем приглашения только по опубликованным заказам
     if (job.status !== "PUBLISHED" || job.moderationStatus === "REJECTED") {
-      return NextResponse.json(
-        {
-          error: "INVITE_ONLY_FOR_PUBLISHED",
-          message: "Приглашать можно только опубликованные заказы.",
-        },
-        { status: 409 },
+      return fail(
+        409,
+        API_ERROR_CODES.CONFLICT,
+        "Приглашать можно только опубликованные заказы.",
+        requestId,
+        { code: "INVITE_ONLY_FOR_PUBLISHED" },
       );
     }
 
@@ -93,22 +92,32 @@ export async function POST(req: Request) {
       });
 
       if (!creatorUser || creatorUser.role !== "CREATOR") {
-        return NextResponse.json({ error: "CREATOR_NOT_FOUND" }, { status: 404 });
+        return fail(404, API_ERROR_CODES.NOT_FOUND, "Креатор не найден.", requestId, {
+          code: "CREATOR_NOT_FOUND",
+        });
       }
 
-      return NextResponse.json({ error: "CREATOR_PROFILE_REQUIRED" }, { status: 409 });
+      return fail(409, API_ERROR_CODES.CONFLICT, "Креатор еще не заполнил профиль.", requestId, {
+        code: "CREATOR_PROFILE_REQUIRED",
+      });
     }
 
     if (creatorProfile.user.role !== "CREATOR") {
-      return NextResponse.json({ error: "CREATOR_NOT_FOUND" }, { status: 404 });
+      return fail(404, API_ERROR_CODES.NOT_FOUND, "Креатор не найден.", requestId, {
+        code: "CREATOR_NOT_FOUND",
+      });
     }
 
     if (!creatorProfile.isPublic) {
-      return NextResponse.json({ error: "CREATOR_NOT_PUBLIC" }, { status: 409 });
+      return fail(409, API_ERROR_CODES.CONFLICT, "Креатор не разрешил показывать профиль.", requestId, {
+        code: "CREATOR_NOT_PUBLIC",
+      });
     }
 
     if (creatorProfile.verificationStatus !== "VERIFIED") {
-      return NextResponse.json({ error: "CREATOR_NOT_VERIFIED" }, { status: 409 });
+      return fail(409, API_ERROR_CODES.CONFLICT, "Креатор еще не подтвержден.", requestId, {
+        code: "CREATOR_NOT_VERIFIED",
+      });
     }
 
     const messageText = parsed.data.message?.trim() || null;
@@ -185,9 +194,11 @@ export async function POST(req: Request) {
       conversationId: result.conversationId,
     });
 
-    return NextResponse.json({ ok: true, invitationId: result.invitation.id, conversationId: result.conversationId });
+    return ok({ invitationId: result.invitation.id, conversationId: result.conversationId }, requestId);
   } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "Server error." }, { status: 500 });
+    logApiError("[api] invitations:create failed", err, requestId);
+    const mapped = mapAuthError(err, requestId);
+    if (mapped) return mapped;
+    return fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId);
   }
 }

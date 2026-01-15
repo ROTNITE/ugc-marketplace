@@ -11,6 +11,12 @@ import type {
 
 export type JobSort = "new" | "budget";
 
+export type JobCursor = {
+  id: string;
+  createdAt: string;
+  budgetMax?: number;
+};
+
 export interface JobListFilters {
   q?: string;
   platform?: Platform;
@@ -172,8 +178,31 @@ export function buildJobOrderBy(
   filters: JobListFilters,
 ): Prisma.JobOrderByWithRelationInput[] {
   if (filters.sort === "budget") {
-    return [{ budgetMax: "desc" }, { createdAt: "desc" }];
+    return [{ budgetMax: "desc" }, { createdAt: "desc" }, { id: "desc" }];
   }
 
-  return [{ createdAt: "desc" }];
+  return [{ createdAt: "desc" }, { id: "desc" }];
+}
+
+export function buildJobCursorWhere(filters: JobListFilters, cursor: JobCursor | null) {
+  if (!cursor) return null;
+  const createdAt = new Date(cursor.createdAt);
+  if (Number.isNaN(createdAt.getTime())) return null;
+
+  if (filters.sort === "budget" && typeof cursor.budgetMax === "number") {
+    return {
+      OR: [
+        { budgetMax: { lt: cursor.budgetMax } },
+        { budgetMax: cursor.budgetMax, createdAt: { lt: createdAt } },
+        { budgetMax: cursor.budgetMax, createdAt, id: { lt: cursor.id } },
+      ],
+    };
+  }
+
+  return {
+    OR: [
+      { createdAt: { lt: createdAt } },
+      { createdAt, id: { lt: cursor.id } },
+    ],
+  };
 }

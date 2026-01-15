@@ -5,7 +5,22 @@ import { Badge } from "@/components/ui/badge";
 import { PLATFORM_LABELS, NICHE_LABELS, RIGHTS_PACKAGE_LABELS, CURRENCY_LABELS } from "@/lib/constants";
 import { format } from "date-fns";
 
-export function JobCard({ job }: { job: Job }) {
+export type JobListItem = Pick<
+  Job,
+  | "id"
+  | "title"
+  | "description"
+  | "platform"
+  | "niche"
+  | "rightsPackage"
+  | "budgetMin"
+  | "budgetMax"
+  | "currency"
+  | "deadlineDate"
+  | "deliverablesCount"
+>;
+
+export function JobCard({ job }: { job: JobListItem }) {
   return (
     <Link href={`/jobs/${job.id}`} className="block">
       <Card className="hover:border-border hover:shadow-md transition-shadow">

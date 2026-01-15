@@ -1,24 +1,25 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, mapAuthError, ok } from "@/lib/api/contract";
+import { requireRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { emitEvent } from "@/lib/outbox";
 import { getCreatorIds } from "@/lib/authz";
+import { logApiError } from "@/lib/request-id";
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role !== "CREATOR") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-  if (!user.creatorProfileId) {
-    return NextResponse.json(
-      { error: "CREATOR_PROFILE_REQUIRED", message: "Заполните профиль креатора перед отклонением." },
-      { status: 409 },
-    );
-  }
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const requestId = ensureRequestId(req);
 
   try {
+    const user = await requireRole("CREATOR");
+    if (!user.creatorProfileId) {
+      return fail(
+        409,
+        API_ERROR_CODES.CONFLICT,
+        "Заполните профиль креатора перед отклонением.",
+        requestId,
+        { code: "CREATOR_PROFILE_REQUIRED", profileUrl: "/dashboard/profile" },
+      );
+    }
     const invitation = await prisma.invitation.findUnique({
       where: { id: params.id },
       select: { id: true, status: true, jobId: true, creatorId: true },
@@ -26,11 +27,13 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
     const creatorIds = getCreatorIds(user);
     if (!invitation || !creatorIds.includes(invitation.creatorId)) {
-      return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+      return fail(404, API_ERROR_CODES.NOT_FOUND, "Приглашение не найдено.", requestId);
     }
 
     if (invitation.status !== "SENT") {
-      return NextResponse.json({ error: "ALREADY_HANDLED" }, { status: 409 });
+      return fail(409, API_ERROR_CODES.CONFLICT, "Приглашение уже обработано.", requestId, {
+        code: "ALREADY_HANDLED",
+      });
     }
 
     await prisma.invitation.update({
@@ -44,9 +47,11 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       creatorId: invitation.creatorId,
     });
 
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "Server error." }, { status: 500 });
+    return ok({ declined: true }, requestId);
+  } catch (error) {
+    const authError = mapAuthError(error, requestId);
+    if (authError) return authError;
+    logApiError("[api] invitations:decline failed", error, requestId, { invitationId: params.id });
+    return fail(500, API_ERROR_CODES.INTERNAL_ERROR, "Не удалось отклонить приглашение.", requestId);
   }
 }

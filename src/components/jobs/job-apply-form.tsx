@@ -41,11 +41,12 @@ export function JobApplyForm({ jobId }: { jobId: string }) {
           }),
         });
 
-        if (!res.ok) {
-          const data = await res.json().catch(() => null);
-          setError(data?.message ?? data?.error ?? "Не удалось отправить отклик.");
-          if (data?.completeProfile) {
-            setProfileCta(data?.profileUrl ?? "/dashboard/profile");
+        const data = await res.json().catch(() => null);
+        if (!res.ok || data?.ok === false) {
+          const details = data?.error?.details;
+          setError(data?.error?.message ?? "Не удалось отправить отклик.");
+          if (details?.completeProfile) {
+            setProfileCta(details?.profileUrl ?? "/dashboard/profile");
           }
           return;
         }

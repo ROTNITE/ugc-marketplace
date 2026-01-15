@@ -1,30 +1,30 @@
-import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { emitEvent } from "@/lib/outbox";
 import { createNotification } from "@/lib/notifications";
 import { releaseEscrowForJob } from "@/lib/payments/escrow";
-import { isBrandOwner } from "@/lib/authz";
+import { requireBrandOwnerOfJob } from "@/lib/authz";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, mapAuthError, ok } from "@/lib/api/contract";
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const requestId = ensureRequestId(req);
   const session = await getServerSession(authOptions);
   const user = session?.user;
 
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role !== "BRAND") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-
-  const job = await prisma.job.findUnique({
-    where: { id: params.id },
-    select: { id: true, brandId: true, activeCreatorId: true, title: true, status: true },
-  });
-
-  if (!job) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-  if (!isBrandOwner(user, job.brandId)) {
-    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  if (!user) {
+    return fail(401, API_ERROR_CODES.UNAUTHORIZED, "Требуется авторизация.", requestId);
   }
+  const authz = await requireBrandOwnerOfJob(params.id, user).catch((error) => {
+    const mapped = mapAuthError(error, requestId);
+    if (mapped) return { errorResponse: mapped };
+    return { errorResponse: fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId) };
+  });
+  if ("errorResponse" in authz) return authz.errorResponse;
+  const { job } = authz;
   if (job.status === "COMPLETED") {
-    return NextResponse.json({ ok: true, warning: "Заказ уже завершён." });
+    return ok({ warning: "Заказ уже завершён." }, requestId);
   }
 
   const dispute = await prisma.dispute.findUnique({
@@ -32,9 +32,12 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     select: { status: true },
   });
   if (dispute?.status === "OPEN") {
-    return NextResponse.json(
-      { error: "DISPUTE_OPEN", message: "Идёт спор. Приёмка временно недоступна." },
-      { status: 409 },
+    return fail(
+      409,
+      API_ERROR_CODES.CONFLICT,
+      "Идёт спор. Приёмка временно недоступна.",
+      requestId,
+      { code: "DISPUTE_OPEN" },
     );
   }
 
@@ -45,7 +48,13 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   });
 
   if (!lastSubmission || lastSubmission.status !== "SUBMITTED") {
-    return NextResponse.json({ error: "NO_SUBMISSION" }, { status: 409 });
+    return fail(
+      409,
+      API_ERROR_CODES.CONFLICT,
+      "Нет сдачи в статусе SUBMITTED.",
+      requestId,
+      { code: "NO_SUBMISSION" },
+    );
   }
 
   const releaseResult = await prisma.$transaction(async (tx) => {
@@ -100,5 +109,5 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       ? "Эскроу не пополнен - выплаты не произведены."
       : undefined;
 
-  return NextResponse.json({ ok: true, warning });
+  return ok({ warning, releaseStatus: releaseResult.status }, requestId);
 }

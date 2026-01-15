@@ -21,9 +21,9 @@ export function JobModerationActions({ jobId }: JobModerationActionsProps) {
     setError(null);
     try {
       const res = await fetch(`/api/admin/jobs/${jobId}/approve`, { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось одобрить.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось одобрить.");
         return;
       }
       router.refresh();
@@ -48,9 +48,9 @@ export function JobModerationActions({ jobId }: JobModerationActionsProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось отклонить.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось отклонить.");
         return;
       }
       setReason("");

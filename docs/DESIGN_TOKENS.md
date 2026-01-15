@@ -37,7 +37,9 @@
 
 - Базовый шрифт: `--font-sans` (подключен через Next/font в `src/app/layout.tsx`).
 - Tailwind шкала используется по умолчанию (`text-xs` -> `text-3xl`), в UI чаще встречаются `text-xs`, `text-sm`, `text-base`, `text-lg`, `text-2xl`, `text-3xl`.
-- Заголовки: `PageHeader`/`CardTitle` задают `text-2xl`/`text-base` с `font-semibold`.
+- Заголовки: `PageHeader` — `text-2xl md:text-3xl` с `leading-tight` и `tracking-tight`, `CardTitle` — `text-base` с `leading-tight`.
+- Описания: `CardDescription` и `PageHeader` description используют `text-sm` + `leading-relaxed`.
+- EmptyState и Alert используют спокойный `leading-relaxed` для читаемости длинных текстов.
 
 ## Spacing
 
@@ -60,6 +62,8 @@
 - Hover: обычно через `hover:bg-muted/60` или `hover:opacity-95`.
 - Focus: `focus-visible:ring-2` + `ring-ring` (цвет `--ring`).
 - Disabled: `disabled:opacity-50 disabled:pointer-events-none`.
+- Формы: `Input/Select/Textarea` используют `focus-visible:border-ring` + `ring-ring` и `transition-colors`.
+- Степпер/бейджи: используем `transition-colors` без изменения токенов.
 
 ## Примечания по нормализации
 
@@ -67,3 +71,10 @@
 - Ошибки и успехи в формах переведены на `text-danger` и `text-success`.
 - Стили чекбоксов используют `accent-primary` вместо хардкода.
 - Темная тема поддерживается через `.dark` или `data-theme="dark"` на `<html>`.
+
+## Переключатель темы
+
+- UI-переключатель: `ThemeToggle` (`src/components/theme-toggle.tsx`) с вариантами `system/light/dark`.
+- Хранение выбора: `localStorage` ключ `theme`.
+- Применение: на `<html>` выставляется `data-theme="light|dark"` (для `system` применяется настройка ОС).
+- Для предотвращения FOUC используется ранний inline-скрипт в `src/app/layout.tsx`.

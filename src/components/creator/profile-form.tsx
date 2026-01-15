@@ -114,9 +114,9 @@ export function CreatorProfileForm({ initialProfile }: CreatorProfileFormProps) 
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось сохранить профиль.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось сохранить профиль.");
         return;
       }
 
@@ -136,12 +136,13 @@ export function CreatorProfileForm({ initialProfile }: CreatorProfileFormProps) 
     try {
       const res = await fetch("/api/creator/verification/generate", { method: "POST" });
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setVerificationError(data?.error ?? "Не удалось сгенерировать код.");
+      if (!res.ok || data?.ok === false) {
+        setVerificationError(data?.error?.message ?? "Не удалось сгенерировать код.");
         return;
       }
-      setVerificationCode(data?.code ?? null);
-      setVerificationStatus(data?.status ?? "UNVERIFIED");
+      const payload = data?.data ?? data;
+      setVerificationCode(payload?.code ?? null);
+      setVerificationStatus(payload?.status ?? "UNVERIFIED");
       setVerificationMessage("Код сгенерирован. Добавьте его в bio и отправьте на проверку.");
     } catch {
       setVerificationError("Не удалось сгенерировать код.");
@@ -157,8 +158,8 @@ export function CreatorProfileForm({ initialProfile }: CreatorProfileFormProps) 
     try {
       const res = await fetch("/api/creator/verification/submit", { method: "POST" });
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setVerificationError(data?.error ?? "Не удалось отправить на проверку.");
+      if (!res.ok || data?.ok === false) {
+        setVerificationError(data?.error?.message ?? "Не удалось отправить на проверку.");
         return;
       }
       setVerificationStatus("PENDING");
@@ -177,8 +178,8 @@ export function CreatorProfileForm({ initialProfile }: CreatorProfileFormProps) 
     try {
       const res = await fetch("/api/creator/verification/request", { method: "POST" });
       const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setVerificationError(data?.message ?? data?.error ?? "Не удалось отправить на повторную проверку.");
+      if (!res.ok || data?.ok === false) {
+        setVerificationError(data?.error?.message ?? "Не удалось отправить на повторную проверку.");
         return;
       }
       setVerificationStatus("PENDING");

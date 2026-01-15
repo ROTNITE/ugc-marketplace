@@ -18,7 +18,7 @@ export function Stepper({
           <li
             key={s}
             className={cn(
-              "flex items-center gap-2 rounded-full border px-3 py-1 text-xs",
+              "flex items-center gap-2 rounded-full border px-3 py-1 text-xs transition-colors",
               isActive && "border-primary text-foreground",
               isDone && "border-border text-muted-foreground bg-muted/40",
               !isActive && !isDone && "border-border text-muted-foreground",
@@ -26,7 +26,7 @@ export function Stepper({
           >
             <span
               className={cn(
-                "inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px]",
+                "inline-flex h-5 w-5 items-center justify-center rounded-full text-[11px] transition-colors",
                 isActive && "bg-primary text-primary-foreground",
                 isDone && "bg-muted text-muted-foreground",
                 !isActive && !isDone && "bg-background text-muted-foreground border border-border",

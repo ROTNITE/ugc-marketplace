@@ -16,9 +16,10 @@ export function EscrowFundButton({ jobId }: { jobId: string }) {
 
     try {
       const res = await fetch(`/api/escrow/${jobId}/fund`, { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось пополнить эскроу.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        const message = data?.error?.message ?? "Не удалось пополнить эскроу.";
+        setError(message);
         return;
       }
       router.refresh();

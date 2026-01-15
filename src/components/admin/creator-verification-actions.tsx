@@ -21,9 +21,9 @@ export function CreatorVerificationActions({ creatorProfileId }: CreatorVerifica
     setError(null);
     try {
       const res = await fetch(`/api/admin/creators/${creatorProfileId}/verify`, { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось подтвердить.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось подтвердить.");
         return;
       }
       router.refresh();
@@ -49,9 +49,9 @@ export function CreatorVerificationActions({ creatorProfileId }: CreatorVerifica
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось отклонить.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось отклонить.");
         return;
       }
       router.refresh();

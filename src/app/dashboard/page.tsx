@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LogoutButton } from "@/components/dashboard/logout-button";
 import { Alert } from "@/components/ui/alert";
+import { Container } from "@/components/ui/container";
+import { PageHeader } from "@/components/ui/page-header";
+import { SectionCard } from "@/components/ui/section-card";
 
 export const dynamic = "force-dynamic";
 
@@ -14,11 +16,11 @@ export default async function DashboardPage() {
   if (!user) {
     // middleware should already redirect, but just in case
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Нужен вход">
           Перейдите на страницу входа.
         </Alert>
-      </div>
+      </Container>
     );
   }
 
@@ -28,175 +30,107 @@ export default async function DashboardPage() {
 
   if (isAdmin) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-10">
+      <Container size="sm" className="py-10">
         <Alert variant="info" title="Админ-кабинет">
           Этот раздел предназначен для брендов и креаторов.{" "}
           <Link className="text-primary hover:underline" href="/admin">
             Перейти в админку
           </Link>
         </Alert>
-      </div>
+      </Container>
     );
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Кабинет</h1>
-          <p className="text-sm text-muted-foreground">
-            Привет, {user.name ?? user.email}. Это базовый кабинет - будем расширять.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="soft">{isBrand ? "Бренд" : isCreator ? "Креатор" : "Админ"}</Badge>
-          <LogoutButton />
-        </div>
-      </div>
+    <Container className="py-10 space-y-6">
+      <PageHeader
+        title="Кабинет"
+        description={`Привет, ${user.name ?? user.email}. Это базовый кабинет - будем расширять.`}
+        actions={
+          <>
+            <Badge variant="soft">{isBrand ? "Бренд" : isCreator ? "Креатор" : "Админ"}</Badge>
+            <LogoutButton />
+          </>
+        }
+      />
 
       {isBrand ? (
         <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Разместить заказ</CardTitle>
-              <CardDescription>Создайте бриф и опубликуйте</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link className="text-primary hover:underline" href="/dashboard/jobs/new">
-                Создать заказ
-              </Link>
-            </CardContent>
-          </Card>
+          <SectionCard title="Разместить заказ" description="Создайте бриф и опубликуйте">
+            <Link className="text-primary hover:underline" href="/dashboard/jobs/new">
+              Создать заказ
+            </Link>
+          </SectionCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Сделки</CardTitle>
-              <CardDescription>Заказы, отклики и приёмка</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link className="text-primary hover:underline" href="/dashboard/deals">
-                Открыть сделки
-              </Link>
-            </CardContent>
-          </Card>
+          <SectionCard title="Сделки" description="Заказы, отклики и приёмка">
+            <Link className="text-primary hover:underline" href="/dashboard/deals">
+              Открыть сделки
+            </Link>
+          </SectionCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Сообщения</CardTitle>
-              <CardDescription>Диалоги по заказам и чат с креаторами</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link className="text-primary hover:underline" href="/dashboard/inbox">
-                Открыть сообщения
-              </Link>
-            </CardContent>
-          </Card>
+          <SectionCard title="Сообщения" description="Диалоги по заказам и чат с креаторами">
+            <Link className="text-primary hover:underline" href="/dashboard/inbox">
+              Открыть сообщения
+            </Link>
+          </SectionCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Профиль бренда</CardTitle>
-              <CardDescription>Компания, сайт, описание</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link className="text-primary hover:underline" href="/dashboard/profile">
-                Открыть профиль
-              </Link>
-            </CardContent>
-          </Card>
+          <SectionCard title="Профиль бренда" description="Компания, сайт, описание">
+            <Link className="text-primary hover:underline" href="/dashboard/profile">
+              Открыть профиль
+            </Link>
+          </SectionCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Отзывы</CardTitle>
-              <CardDescription>Оценки и обратная связь</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link className="text-primary hover:underline" href="/dashboard/reviews">
-                Перейти к отзывам
-              </Link>
-            </CardContent>
-          </Card>
+          <SectionCard title="Отзывы" description="Оценки и обратная связь">
+            <Link className="text-primary hover:underline" href="/dashboard/reviews">
+              Перейти к отзывам
+            </Link>
+          </SectionCard>
         </div>
       ) : null}
 
       {isCreator ? (
         <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle>Найти заказы</CardTitle>
-              <CardDescription>Лента заданий с фильтрами</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link className="text-primary hover:underline" href="/jobs">
-                Открыть ленту
-              </Link>
-            </CardContent>
-          </Card>
+          <SectionCard title="Найти заказы" description="Лента заданий с фильтрами">
+            <Link className="text-primary hover:underline" href="/jobs">
+              Открыть ленту
+            </Link>
+          </SectionCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Сделки</CardTitle>
-              <CardDescription>Приглашения, отклики, работа</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link className="text-primary hover:underline" href="/dashboard/deals">
-                Открыть сделки
-              </Link>
-            </CardContent>
-          </Card>
+          <SectionCard title="Сделки" description="Приглашения, отклики, работа">
+            <Link className="text-primary hover:underline" href="/dashboard/deals">
+              Открыть сделки
+            </Link>
+          </SectionCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Сообщения</CardTitle>
-              <CardDescription>Диалоги с брендами</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link className="text-primary hover:underline" href="/dashboard/inbox">
-                Открыть сообщения
-              </Link>
-            </CardContent>
-          </Card>
+          <SectionCard title="Сообщения" description="Диалоги с брендами">
+            <Link className="text-primary hover:underline" href="/dashboard/inbox">
+              Открыть сообщения
+            </Link>
+          </SectionCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Профиль</CardTitle>
-              <CardDescription>Портфолио, прайс и настройки</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link className="text-primary hover:underline" href="/dashboard/profile">
-                Открыть профиль
-              </Link>
-            </CardContent>
-          </Card>
+          <SectionCard title="Профиль" description="Портфолио, прайс и настройки">
+            <Link className="text-primary hover:underline" href="/dashboard/profile">
+              Открыть профиль
+            </Link>
+          </SectionCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Баланс</CardTitle>
-              <CardDescription>История операций и заявки на вывод</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link className="text-primary hover:underline" href="/dashboard/balance">
-                Открыть баланс
-              </Link>
-            </CardContent>
-          </Card>
+          <SectionCard title="Баланс" description="История операций и заявки на вывод">
+            <Link className="text-primary hover:underline" href="/dashboard/balance">
+              Открыть баланс
+            </Link>
+          </SectionCard>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Отзывы</CardTitle>
-              <CardDescription>Оценки и обратная связь</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link className="text-primary hover:underline" href="/dashboard/reviews">
-                Перейти к отзывам
-              </Link>
-            </CardContent>
-          </Card>
+          <SectionCard title="Отзывы" description="Оценки и обратная связь">
+            <Link className="text-primary hover:underline" href="/dashboard/reviews">
+              Перейти к отзывам
+            </Link>
+          </SectionCard>
         </div>
       ) : null}
 
       <Alert variant="info" title="Следующие шаги">
         Здесь будут появляться новые разделы и улучшения кабинета.
       </Alert>
-    </div>
+    </Container>
   );
 }

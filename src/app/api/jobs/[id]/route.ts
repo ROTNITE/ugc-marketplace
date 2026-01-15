@@ -8,8 +8,11 @@ import { emitEvent } from "@/lib/outbox";
 import { createNotification } from "@/lib/notifications";
 import { jobCreateSchema } from "@/lib/validators";
 import { getJobForViewerOrThrow } from "@/lib/jobs/visibility";
-import { getBrandIds } from "@/lib/authz";
+import { getBrandIds, requireRole, requireUser } from "@/lib/authz";
 import { getBrandCompleteness } from "@/lib/profiles/completeness";
+import { logApiError } from "@/lib/request-id";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, ok, parseJson, mapAuthError } from "@/lib/api/contract";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -41,25 +44,21 @@ const patchSchema = z.object({
 });
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-
-  const job = await prisma.job.findUnique({ where: { id: params.id } });
-  if (!job) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-
-  const isOwner = user.role === "BRAND" && getBrandIds(user).includes(job.brandId);
-  const isAdmin = user.role === "ADMIN";
-
-  if (!isOwner && !isAdmin) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-
+  const requestId = ensureRequestId(req);
   try {
-    const body = await req.json();
-    const parsed = patchSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: "BAD_REQUEST", details: parsed.error.flatten() }, { status: 400 });
+    const user = await requireUser();
+    const job = await prisma.job.findUnique({ where: { id: params.id } });
+    if (!job) return fail(404, API_ERROR_CODES.NOT_FOUND, "Заказ не найден.", requestId);
+
+    const isOwner = user.role === "BRAND" && getBrandIds(user).includes(job.brandId);
+    const isAdmin = user.role === "ADMIN";
+
+    if (!isOwner && !isAdmin) {
+      return fail(404, API_ERROR_CODES.NOT_FOUND, "Заказ не найден.", requestId);
     }
+
+    const parsed = await parseJson(req, patchSchema, requestId);
+    if ("errorResponse" in parsed) return parsed.errorResponse;
 
     if (user.role === "BRAND" && parsed.data.status === "PUBLISHED" && job.status !== "PUBLISHED") {
       const brandProfile = await prisma.brandProfile.findUnique({
@@ -71,15 +70,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         description: brandProfile?.description ?? "",
       });
       if (completeness.missing.length > 0) {
-        return NextResponse.json(
+        return fail(
+          409,
+          API_ERROR_CODES.CONFLICT,
+          "Заполните профиль бренда перед публикацией заказа.",
+          requestId,
           {
-            error: "BRAND_PROFILE_INCOMPLETE",
-            message: "Заполните профиль бренда перед публикацией заказа.",
+            code: "BRAND_PROFILE_INCOMPLETE",
             completeProfile: true,
             missing: completeness.missing,
             profileUrl: "/dashboard/profile",
           },
-          { status: 409 },
         );
       }
     }
@@ -122,40 +123,35 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       );
     }
 
-    return NextResponse.json({ ok: true, job: updated });
-  } catch {
-    return NextResponse.json({ error: "Server error." }, { status: 500 });
+    return ok({ job: updated }, requestId);
+  } catch (error) {
+    const mapped = mapAuthError(error, requestId);
+    if (mapped) return mapped;
+    return fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId);
   }
 }
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role !== "BRAND") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-
-  const job = await prisma.job.findUnique({
-    where: { id: params.id },
-    include: { applications: { select: { id: true } }, submissions: { select: { id: true } } },
-  });
-
-  if (!job) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-
-  if (!getBrandIds(user).includes(job.brandId)) {
-    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-  }
-
-  if (job.status === "COMPLETED" || job.status === "CANCELED" || job.activeCreatorId) {
-    return NextResponse.json({ error: "EDIT_NOT_ALLOWED" }, { status: 409 });
-  }
-
+  const requestId = ensureRequestId(req);
   try {
-    const body = await req.json();
-    const parsed = jobCreateSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: "BAD_REQUEST", details: parsed.error.flatten() }, { status: 400 });
+    const user = await requireRole("BRAND");
+    const job = await prisma.job.findUnique({
+      where: { id: params.id },
+      include: { applications: { select: { id: true } }, submissions: { select: { id: true } } },
+    });
+
+    if (!job) return fail(404, API_ERROR_CODES.NOT_FOUND, "Заказ не найден.", requestId);
+
+    if (!getBrandIds(user).includes(job.brandId)) {
+      return fail(404, API_ERROR_CODES.NOT_FOUND, "Заказ не найден.", requestId);
     }
+
+    if (job.status === "COMPLETED" || job.status === "CANCELED" || job.activeCreatorId) {
+      return fail(409, API_ERROR_CODES.CONFLICT, "Редактирование недоступно.", requestId);
+    }
+
+    const parsed = await parseJson(req, jobCreateSchema, requestId);
+    if ("errorResponse" in parsed) return parsed.errorResponse;
     const data = parsed.data;
 
     const moderatedFields: Array<keyof typeof data> = [
@@ -288,9 +284,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       href: `/dashboard/jobs`,
     }).catch(() => {});
 
-    return NextResponse.json({ ok: true, job: updated });
+    return ok({ job: updated }, requestId);
   } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "Server error." }, { status: 500 });
+    logApiError("[api] jobs:update failed", err, requestId, { jobId: params.id });
+    const mapped = mapAuthError(err, requestId);
+    if (mapped) return mapped;
+    return fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId);
   }
 }

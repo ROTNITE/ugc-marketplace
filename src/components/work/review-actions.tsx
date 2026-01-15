@@ -11,37 +11,41 @@ export function ReviewActions({ jobId }: { jobId: string }) {
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const [isRequesting, setIsRequesting] = useState(false);
 
   async function approve() {
-    setIsLoading(true);
+    if (isApproving || isRequesting) return;
+    setIsApproving(true);
     setError(null);
     setNotice(null);
     try {
       const res = await fetch(`/api/jobs/${jobId}/review/approve`, { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось подтвердить.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        const message = data?.error?.message ?? "Не удалось подтвердить.";
+        setError(message);
         return;
       }
-      const data = await res.json().catch(() => null);
-      if (data?.warning) {
-        setNotice(data.warning);
+      const warning = data?.data?.warning ?? data?.warning;
+      if (warning) {
+        setNotice(warning);
       }
       router.refresh();
     } catch {
       setError("Не удалось подтвердить.");
     } finally {
-      setIsLoading(false);
+      setIsApproving(false);
     }
   }
 
   async function requestChanges() {
+    if (isApproving || isRequesting) return;
     if (!comment.trim()) {
       setError("Добавьте комментарий к доработке.");
       return;
     }
-    setIsLoading(true);
+    setIsRequesting(true);
     setError(null);
     setNotice(null);
     try {
@@ -50,9 +54,10 @@ export function ReviewActions({ jobId }: { jobId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ comment }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось запросить правки.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        const message = data?.error?.message ?? "Не удалось запросить правки.";
+        setError(message);
         return;
       }
       setComment("");
@@ -60,7 +65,7 @@ export function ReviewActions({ jobId }: { jobId: string }) {
     } catch {
       setError("Не удалось запросить правки.");
     } finally {
-      setIsLoading(false);
+      setIsRequesting(false);
     }
   }
 
@@ -81,11 +86,11 @@ export function ReviewActions({ jobId }: { jobId: string }) {
         <Textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Что поправить" />
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" onClick={requestChanges} disabled={isLoading}>
-          Запросить правки
+        <Button variant="outline" onClick={requestChanges} disabled={isApproving || isRequesting}>
+          {isRequesting ? "Отправляем..." : "Запросить правки"}
         </Button>
-        <Button onClick={approve} disabled={isLoading}>
-          Одобрить
+        <Button onClick={approve} disabled={isApproving || isRequesting}>
+          {isApproving ? "Подтверждаем..." : "Одобрить"}
         </Button>
       </div>
     </div>

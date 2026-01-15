@@ -1,19 +1,17 @@
-import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { createNotification } from "@/lib/notifications";
 import { emitEvent } from "@/lib/outbox";
 import { hashBindingCode, normalizeBindingCode } from "@/lib/telegram/binding";
+import { logApiError } from "@/lib/request-id";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, ok, parseJson } from "@/lib/api/contract";
 
 const schema = z.object({
   code: z.string().min(4).max(32),
   telegramUserId: z.string().min(3).max(64),
   telegramUsername: z.string().min(1).max(64).optional(),
 });
-
-function unauthorized() {
-  return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-}
 
 function requireAuth(req: Request) {
   const header = req.headers.get("authorization");
@@ -25,13 +23,13 @@ function requireAuth(req: Request) {
 }
 
 export async function POST(req: Request) {
-  if (!requireAuth(req)) return unauthorized();
-
-  const body = await req.json().catch(() => null);
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: "BAD_REQUEST", details: parsed.error.flatten() }, { status: 400 });
+  const requestId = ensureRequestId(req);
+  if (!requireAuth(req)) {
+    return fail(401, API_ERROR_CODES.OUTBOX_AUTH_ERROR, "Недостаточно прав.", requestId);
   }
+
+  const parsed = await parseJson(req, schema, requestId);
+  if ("errorResponse" in parsed) return parsed.errorResponse;
 
   const now = new Date();
   const code = normalizeBindingCode(parsed.data.code);
@@ -45,7 +43,9 @@ export async function POST(req: Request) {
   });
 
   if (!request) {
-    return NextResponse.json({ error: "INVALID_CODE" }, { status: 400 });
+    return fail(400, API_ERROR_CODES.VALIDATION_ERROR, "Неверный код.", requestId, {
+      code: "INVALID_CODE",
+    });
   }
 
   try {
@@ -85,12 +85,14 @@ export async function POST(req: Request) {
       telegramUserId: account.telegramUserId,
     }).catch(() => {});
 
-    return NextResponse.json({ ok: true, userId: account.userId });
+    return ok({ userId: account.userId }, requestId);
   } catch (error) {
     if (error instanceof Error && error.message === "TELEGRAM_ALREADY_BOUND") {
-      return NextResponse.json({ error: "TELEGRAM_ALREADY_BOUND" }, { status: 409 });
+      return fail(409, API_ERROR_CODES.CONFLICT, "Telegram уже привязан к другому аккаунту.", requestId, {
+        code: "TELEGRAM_ALREADY_BOUND",
+      });
     }
-    console.error(error);
-    return NextResponse.json({ error: "SERVER_ERROR" }, { status: 500 });
+    logApiError("[api] telegram:bind confirm failed", error, requestId);
+    return fail(500, API_ERROR_CODES.INTERNAL_ERROR, "Не удалось подтвердить привязку.", requestId);
   }
 }

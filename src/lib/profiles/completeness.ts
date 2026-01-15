@@ -87,8 +87,8 @@ export function getBrandCompleteness(input: BrandCompletenessInput): Completenes
       ok: companyName.length >= 2,
     },
     {
-      item: { key: "description", label: "Описание (минимум 20 символов)", ctaHref: "#brand-description" },
-      ok: description.length >= 20,
+      item: { key: "description", label: "Описание", ctaHref: "#brand-description" },
+      ok: description.length > 0,
     },
     {
       item: { key: "website", label: "Сайт (валидный URL)", ctaHref: "#brand-website" },

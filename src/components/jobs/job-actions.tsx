@@ -19,9 +19,9 @@ export function JobPauseToggle({ jobId, status }: PauseProps) {
     try {
       const url = isPaused ? `/api/jobs/${jobId}/unpause` : `/api/jobs/${jobId}/pause`;
       const res = await fetch(url, { method: "POST" });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        setError(data?.error ?? "Не удалось обновить статус.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.ok === false) {
+        setError(data?.error?.message ?? "Не удалось обновить статус.");
         return;
       }
       router.refresh();
@@ -53,11 +53,12 @@ export function JobDuplicateButton({ jobId }: { jobId: string }) {
     try {
       const res = await fetch(`/api/jobs/${jobId}/duplicate`, { method: "POST" });
       const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.id) {
-        setError(data?.error ?? "Не удалось дублировать.");
+      const payload = data?.data ?? data;
+      if (!res.ok || data?.ok === false || !payload?.id) {
+        setError(data?.error?.message ?? "Не удалось дублировать.");
         return;
       }
-      router.push(`/dashboard/jobs/${data.id}/edit`);
+      router.push(`/dashboard/jobs/${payload.id}/edit`);
     } catch {
       setError("Не удалось дублировать.");
     } finally {

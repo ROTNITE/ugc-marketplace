@@ -1,37 +1,23 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { brandProfileSchema } from "@/lib/validators";
+import { API_ERROR_CODES } from "@/lib/api/errors";
+import { ensureRequestId, fail, ok, parseJson, mapAuthError } from "@/lib/api/contract";
+import { requireRole } from "@/lib/authz";
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  if (user.role !== "BRAND") return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-
+  const requestId = ensureRequestId(req);
   try {
+    const user = await requireRole("BRAND");
+    const parsed = await parseJson(req, brandProfileSchema, requestId);
+    if ("errorResponse" in parsed) return parsed.errorResponse;
+
     const existingUser = await prisma.user.findUnique({
       where: { id: user.id },
       select: { id: true },
     });
 
     if (!existingUser) {
-      return NextResponse.json(
-        { error: "Пользователь не найден. Выйдите и войдите снова." },
-        { status: 404 },
-      );
-    }
-
-    const body = await req.json();
-    const parsed = brandProfileSchema.safeParse(body);
-
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Некорректные данные профиля.", details: parsed.error.flatten() },
-        { status: 400 },
-      );
+      return fail(404, API_ERROR_CODES.NOT_FOUND, "Пользователь не найден.", requestId);
     }
 
     const data = parsed.data;
@@ -39,13 +25,13 @@ export async function POST(req: Request) {
     const website = data.website?.trim() || null;
     const description = data.description?.trim() || null;
 
-    await prisma.$transaction(async (tx) => {
+    const profile = await prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: user.id },
         data: { name: companyName },
       });
 
-      await tx.brandProfile.upsert({
+      return tx.brandProfile.upsert({
         where: { userId: user.id },
         update: {
           companyName,
@@ -61,8 +47,10 @@ export async function POST(req: Request) {
       });
     });
 
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ error: "Server error." }, { status: 500 });
+    return ok({ profile }, requestId);
+  } catch (error) {
+    const mapped = mapAuthError(error, requestId);
+    if (mapped) return mapped;
+    return fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId);
   }
 }
