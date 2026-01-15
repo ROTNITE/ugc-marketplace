@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { PLATFORM_LABELS, NICHE_LABELS, CURRENCY_LABELS } from "@/lib/constants";
 import { InviteCreatorDialog } from "@/components/creators/invite-creator-dialog";
 import { getBrandIds } from "@/lib/authz";
+import { getVerificationStatusBadge } from "@/lib/status-badges";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,8 @@ export default async function CreatorProfilePage({ params }: { params: { id: str
     reviewStats._count._all > 0
       ? `${reviewStats._avg.rating?.toFixed(1) ?? "-"} (${reviewStats._count._all})`
       : "-";
+  const verificationBadge =
+    creator.verificationStatus === "VERIFIED" ? getVerificationStatusBadge(creator.verificationStatus) : null;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">
@@ -86,7 +89,11 @@ export default async function CreatorProfilePage({ params }: { params: { id: str
           <h1 className="text-3xl font-semibold tracking-tight">{name}</h1>
           <p className="text-sm text-muted-foreground">Публичный профиль креатора</p>
         </div>
-        {creator.verificationStatus === "VERIFIED" ? <Badge variant="soft">VERIFIED</Badge> : null}
+        {verificationBadge ? (
+          <Badge variant={verificationBadge.variant} tone={verificationBadge.tone}>
+            {verificationBadge.label}
+          </Badge>
+        ) : null}
       </div>
 
       {creator.bio ? (

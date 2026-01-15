@@ -75,7 +75,7 @@ export function BrandProfileForm({ initialProfile }: BrandProfileFormProps) {
         <Input
           value={companyName}
           onChange={(e) => setCompanyName(e.target.value)}
-          placeholder="Например, Demo Brand"
+          placeholder="Например, Демо бренд"
         />
       </div>
 

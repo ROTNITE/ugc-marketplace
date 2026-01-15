@@ -37,7 +37,7 @@ export function JobPauseToggle({ jobId, status }: PauseProps) {
       <Button size="sm" variant="outline" onClick={handleToggle} disabled={loading}>
         {loading ? "Сохраняем..." : isPaused ? "Возобновить публикацию" : "Поставить на паузу"}
       </Button>
-      {error ? <p className="text-xs text-rose-600">{error}</p> : null}
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
     </div>
   );
 }
@@ -70,7 +70,8 @@ export function JobDuplicateButton({ jobId }: { jobId: string }) {
       <Button size="sm" variant="outline" onClick={handleDuplicate} disabled={loading}>
         {loading ? "Дублируем..." : "Дублировать"}
       </Button>
-      {error ? <p className="text-xs text-rose-600">{error}</p> : null}
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
     </div>
   );
 }
+

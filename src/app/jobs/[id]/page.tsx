@@ -80,7 +80,7 @@ export default async function JobDetailPage({ params }: { params: { id: string }
   const brandIds = user ? getBrandIds(user) : [];
   const creatorIds = user ? getCreatorIds(user) : [];
   const isOwnerBrand = !!user && user.role === "BRAND" && brandIds.includes(job.brandId);
-  const brandLabel = job.brand.brandProfile?.companyName ?? job.brand.name ?? "Brand";
+  const brandLabel = job.brand.brandProfile?.companyName ?? job.brand.name ?? "Бренд";
   const brandProfileId = job.brand.brandProfile?.id ?? null;
   const canEdit =
     isOwnerBrand && !job.activeCreatorId && job.status !== "COMPLETED" && job.status !== "CANCELED";

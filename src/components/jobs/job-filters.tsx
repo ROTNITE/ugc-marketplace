@@ -270,7 +270,7 @@ export function JobFilters() {
                 type="checkbox"
                 checked={formats.includes(fmt)}
                 onChange={() => toggleFormat(fmt)}
-                className="accent-[hsl(var(--primary))]"
+                className="accent-primary"
               />
               <span>{fmt}</span>
             </label>
@@ -282,7 +282,7 @@ export function JobFilters() {
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            className="accent-[hsl(var(--primary))]"
+            className="accent-primary"
             checked={needsPosting}
             onChange={(e) => setNeedsPosting(e.target.checked)}
           />
@@ -291,7 +291,7 @@ export function JobFilters() {
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            className="accent-[hsl(var(--primary))]"
+            className="accent-primary"
             checked={needsWhitelisting}
             onChange={(e) => setNeedsWhitelisting(e.target.checked)}
           />
@@ -300,7 +300,7 @@ export function JobFilters() {
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
-            className="accent-[hsl(var(--primary))]"
+            className="accent-primary"
             checked={shippingRequired}
             onChange={(e) => setShippingRequired(e.target.checked)}
           />
@@ -340,3 +340,4 @@ export function JobFilters() {
     </div>
   );
 }
+

@@ -72,7 +72,7 @@ export function JobApplyForm({ jobId }: { jobId: string }) {
         <label className="text-sm font-medium">Сообщение (опционально)</label>
         <Textarea placeholder="Коротко: опыт, как снимаете, сроки, примеры." {...form.register("message")} />
         {form.formState.errors.message ? (
-          <p className="text-xs text-rose-600">{form.formState.errors.message.message}</p>
+          <p className="text-xs text-danger">{form.formState.errors.message.message}</p>
         ) : null}
       </div>
 
@@ -80,7 +80,7 @@ export function JobApplyForm({ jobId }: { jobId: string }) {
         <label className="text-sm font-medium">Ваша цена за пакет (опционально)</label>
         <Input inputMode="numeric" placeholder="например 10000" {...form.register("priceQuote", { valueAsNumber: true })} />
         {form.formState.errors.priceQuote ? (
-          <p className="text-xs text-rose-600">{form.formState.errors.priceQuote.message}</p>
+          <p className="text-xs text-danger">{form.formState.errors.priceQuote.message}</p>
         ) : null}
       </div>
 
@@ -95,3 +95,4 @@ export function JobApplyForm({ jobId }: { jobId: string }) {
     </form>
   );
 }
+

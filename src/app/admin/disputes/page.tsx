@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { DisputeStatus } from "@prisma/client";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
+import { getDisputeStatusBadge } from "@/lib/status-badges";
 
 export const dynamic = "force-dynamic";
 
@@ -70,17 +71,20 @@ export default async function AdminDisputesPage({
           <CardDescription>Статус спора</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          {FILTERS.map((item) => (
-            <Link
-              key={item}
-              className={`rounded-md border px-3 py-1 text-sm transition ${
-                item === filter ? "border-primary text-foreground" : "border-border text-muted-foreground hover:text-foreground"
-              }`}
-              href={`/admin/disputes?status=${item}`}
-            >
-              {item}
-            </Link>
-          ))}
+          {FILTERS.map((item) => {
+            const statusBadge = getDisputeStatusBadge(item);
+            return (
+              <Link
+                key={item}
+                className={`rounded-md border px-3 py-1 text-sm transition ${
+                  item === filter ? "border-primary text-foreground" : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+                href={`/admin/disputes?status=${item}`}
+              >
+                {statusBadge.label}
+              </Link>
+            );
+          })}
         </CardContent>
       </Card>
 
@@ -93,6 +97,7 @@ export default async function AdminDisputesPage({
           {disputes.map((dispute) => {
             const createdAt = formatDistanceToNow(dispute.createdAt, { addSuffix: true, locale: ru });
             const opener = dispute.openedByUser?.name ?? dispute.openedByUser?.email ?? dispute.openedByUser?.id;
+            const statusBadge = getDisputeStatusBadge(dispute.status);
             return (
               <Card key={dispute.id}>
                 <CardHeader>
@@ -103,7 +108,9 @@ export default async function AdminDisputesPage({
                         {opener} · {createdAt}
                       </CardDescription>
                     </div>
-                    <Badge variant="soft">{dispute.status}</Badge>
+                    <Badge variant={statusBadge.variant} tone={statusBadge.tone}>
+                      {statusBadge.label}
+                    </Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="flex items-center justify-between gap-3 text-sm">

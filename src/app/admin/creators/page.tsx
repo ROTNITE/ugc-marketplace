@@ -7,6 +7,7 @@ import { Alert } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CreatorVerificationActions } from "@/components/admin/creator-verification-actions";
+import { getVerificationStatusBadge } from "@/lib/status-badges";
 
 export const dynamic = "force-dynamic";
 
@@ -72,17 +73,20 @@ export default async function AdminCreatorsPage({
           <CardDescription>Статус верификации</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          {FILTERS.map((item) => (
-            <Link
-              key={item}
-              className={`rounded-md border px-3 py-1 text-sm transition ${
-                item === filter ? "border-primary text-foreground" : "border-border text-muted-foreground hover:text-foreground"
-              }`}
-              href={`/admin/creators?status=${item}`}
-            >
-              {item}
-            </Link>
-          ))}
+          {FILTERS.map((item) => {
+            const statusBadge = getVerificationStatusBadge(item);
+            return (
+              <Link
+                key={item}
+                className={`rounded-md border px-3 py-1 text-sm transition ${
+                  item === filter ? "border-primary text-foreground" : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+                href={`/admin/creators?status=${item}`}
+              >
+                {statusBadge.label}
+              </Link>
+            );
+          })}
         </CardContent>
       </Card>
 
@@ -94,8 +98,9 @@ export default async function AdminCreatorsPage({
         <div className="grid gap-4">
           {creators.map((creator) => {
             const name = creator.user?.name || creator.user?.email || "Креатор";
-            const platforms = creator.platforms?.length ? creator.platforms.join(", ") : "—";
+            const platforms = creator.platforms?.length ? creator.platforms.join(", ") : "-";
             const links = creator.portfolioItems?.map((item) => item.url).filter(Boolean).slice(0, 2) ?? [];
+            const statusBadge = getVerificationStatusBadge(creator.verificationStatus);
 
             return (
               <Card key={creator.id}>
@@ -105,7 +110,9 @@ export default async function AdminCreatorsPage({
                       <CardTitle>{name}</CardTitle>
                       <CardDescription>{creator.user?.email}</CardDescription>
                     </div>
-                    <Badge variant="soft">{creator.verificationStatus}</Badge>
+                    <Badge variant={statusBadge.variant} tone={statusBadge.tone}>
+                      {statusBadge.label}
+                    </Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">

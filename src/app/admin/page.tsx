@@ -68,7 +68,7 @@ export default async function AdminPage() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <Link href="/admin/jobs?status=PENDING" className="block" aria-label="Модерация заказов">
-          <SectionCard title="Модерация заказов" description="Проверка и апрув публикаций" className="transition hover:border-primary/50">
+          <SectionCard title="Модерация заказов" description="Проверка и одобрение публикаций" className="transition hover:border-primary/50">
             <Stat label="На модерации" value={pendingJobs} />
           </SectionCard>
         </Link>
@@ -98,7 +98,7 @@ export default async function AdminPage() {
         </Link>
 
         <Link href="/admin/finance?type=MANUAL_ADJUSTMENT" className="block" aria-label="Корректировки">
-          <SectionCard title="Корректировки" description="Manual adjustments" className="transition hover:border-primary/50">
+          <SectionCard title="Корректировки" description="Ручные корректировки" className="transition hover:border-primary/50">
             <Stat label="За 7 дней" value={manualAdjustments} />
           </SectionCard>
         </Link>
@@ -106,7 +106,7 @@ export default async function AdminPage() {
 
       <SectionCard
         title="Последние события"
-        description="Последние 10 outbox событий."
+        description="Последние 10 событий outbox."
         actions={
           <Link className="text-primary hover:underline text-sm" href="/admin/events">
             Открыть события

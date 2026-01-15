@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { getVerificationStatusBadge } from "@/lib/status-badges";
 import {
   PLATFORMS,
   PLATFORM_LABELS,
@@ -66,6 +67,8 @@ export function CreatorProfileForm({ initialProfile }: CreatorProfileFormProps) 
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [verificationMessage, setVerificationMessage] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const verificationBadge =
+    verificationStatus !== "UNVERIFIED" ? getVerificationStatusBadge(verificationStatus) : null;
 
   const toggleValue = <T,>(list: T[], value: T, setter: (next: T[]) => void) => {
     setter(list.includes(value) ? list.filter((item) => item !== value) : [...list, value]);
@@ -205,7 +208,7 @@ export function CreatorProfileForm({ initialProfile }: CreatorProfileFormProps) 
         <Input
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Например, Demo Creator"
+          placeholder="Например, Демо креатор"
         />
       </div>
 
@@ -226,7 +229,7 @@ export function CreatorProfileForm({ initialProfile }: CreatorProfileFormProps) 
               <label key={lang} className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  className="accent-[hsl(var(--primary))]"
+                  className="accent-primary"
                   checked={languages.includes(lang)}
                   onChange={() => toggleValue(languages, lang, setLanguages)}
                 />
@@ -243,7 +246,7 @@ export function CreatorProfileForm({ initialProfile }: CreatorProfileFormProps) 
               <label key={platform} className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  className="accent-[hsl(var(--primary))]"
+                  className="accent-primary"
                   checked={platforms.includes(platform)}
                   onChange={() => toggleValue(platforms, platform, setPlatforms)}
                 />
@@ -260,7 +263,7 @@ export function CreatorProfileForm({ initialProfile }: CreatorProfileFormProps) 
               <label key={niche} className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  className="accent-[hsl(var(--primary))]"
+                  className="accent-primary"
                   checked={niches.includes(niche)}
                   onChange={() => toggleValue(niches, niche, setNiches)}
                 />
@@ -339,7 +342,7 @@ export function CreatorProfileForm({ initialProfile }: CreatorProfileFormProps) 
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
-              className="accent-[hsl(var(--primary))]"
+              className="accent-primary"
               checked={isPublic}
               onChange={() => setIsPublic((prev) => !prev)}
             />
@@ -365,15 +368,9 @@ export function CreatorProfileForm({ initialProfile }: CreatorProfileFormProps) 
               Подтвердите профиль, чтобы бренды доверяли вашему аккаунту.
             </p>
           </div>
-          {verificationStatus === "VERIFIED" ? <Badge variant="soft">Профиль подтверждён</Badge> : null}
-          {verificationStatus === "PENDING" ? (
-            <Badge variant="soft" className="bg-amber-50 text-amber-800 border border-amber-200">
-              На проверке
-            </Badge>
-          ) : null}
-          {verificationStatus === "REJECTED" ? (
-            <Badge variant="soft" className="bg-rose-50 text-rose-800 border border-rose-200">
-              Отклонено
+          {verificationBadge ? (
+            <Badge variant={verificationBadge.variant} tone={verificationBadge.tone}>
+              {verificationBadge.label}
             </Badge>
           ) : null}
         </div>

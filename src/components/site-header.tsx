@@ -48,7 +48,7 @@ export async function SiteHeader() {
             { label: "Профиль", href: "/dashboard/profile" },
           ]
         : user?.role === "ADMIN"
-          ? [{ label: "Admin", href: "/admin" }]
+          ? [{ label: "Админка", href: "/admin" }]
           : [
               { label: "Заказы", href: "/jobs" },
               { label: "Креаторы", href: "/creators" },
@@ -106,7 +106,7 @@ export async function SiteHeader() {
                 ) : null}
               </Link>
               <Badge variant="soft">
-                {user.role === "BRAND" ? "Brand" : user.role === "CREATOR" ? "Creator" : "Admin"}
+                {user.role === "BRAND" ? "Бренд" : user.role === "CREATOR" ? "Креатор" : "Админ"}
               </Badge>
               <Link href={dashboardHref}>
                 <Button size="sm" variant="secondary">

@@ -1,6 +1,6 @@
 # Design Tokens
 
-Документ фиксирует базовую систему дизайн‑токенов, чтобы все экраны использовали единые значения цветов, радиусов и типографики. Токены реализованы через CSS Custom Properties в `src/app/globals.css` и подключены в Tailwind через `tailwind.config.ts`.
+Документ фиксирует базовую систему дизайн-токенов, чтобы все экраны использовали единые значения цветов, радиусов и типографики. Токены реализованы через CSS Custom Properties в `src/app/globals.css` и подключены в Tailwind через `tailwind.config.ts`.
 
 ## Цвета
 
@@ -36,7 +36,7 @@
 ## Типография
 
 - Базовый шрифт: `--font-sans` (подключен через Next/font в `src/app/layout.tsx`).
-- Tailwind шкала используется по умолчанию (`text-xs` → `text-3xl`), в UI чаще встречаются `text-xs`, `text-sm`, `text-base`, `text-lg`, `text-2xl`, `text-3xl`.
+- Tailwind шкала используется по умолчанию (`text-xs` -> `text-3xl`), в UI чаще встречаются `text-xs`, `text-sm`, `text-base`, `text-lg`, `text-2xl`, `text-3xl`.
 - Заголовки: `PageHeader`/`CardTitle` задают `text-2xl`/`text-base` с `font-semibold`.
 
 ## Spacing
@@ -47,7 +47,7 @@
 ## Радиусы
 
 - `--radius = 14px`.
-- Маппинг в Tailwind: `rounded-lg` → `var(--radius)`, `rounded-md` → `radius - 2px`, `rounded-sm` → `radius - 4px`.
+- Маппинг в Tailwind: `rounded-lg` -> `var(--radius)`, `rounded-md` -> `radius - 2px`, `rounded-sm` -> `radius - 4px`.
 - Применение: карточки, формы, пустые состояния, кнопки.
 
 ## Границы и тени
@@ -63,5 +63,7 @@
 
 ## Примечания по нормализации
 
-- Семантические токены (`info/success/warning/danger`) добавлены и используются в UI‑примитивах `Alert` и `Button`.
-- В отдельных формах остались локальные цвета ошибок (`text-rose-*`, `text-emerald-*`) — их стоит заменить на токены в следующем шаге редизайна.
+- Семантические токены (`info/success/warning/danger`) используются в `Alert`, `Button`, `Badge`.
+- Ошибки и успехи в формах переведены на `text-danger` и `text-success`.
+- Стили чекбоксов используют `accent-primary` вместо хардкода.
+- Темная тема поддерживается через `.dark` или `data-theme="dark"` на `<html>`.

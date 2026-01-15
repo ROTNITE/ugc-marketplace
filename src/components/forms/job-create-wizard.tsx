@@ -212,7 +212,7 @@ export function JobCreateWizard({
               <label className="text-sm font-medium">Название заказа</label>
               <Input placeholder="Напр.: 10 UGC-видео про напиток (15 сек)" {...form.register("title")} />
               {form.formState.errors.title ? (
-                <p className="text-xs text-rose-600">{form.formState.errors.title.message}</p>
+                <p className="text-xs text-danger">{form.formState.errors.title.message}</p>
               ) : null}
             </div>
 
@@ -278,7 +278,7 @@ export function JobCreateWizard({
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleFormat(fmt)}
-                        className="accent-[hsl(var(--primary))]"
+                        className="accent-primary"
                       />
                       <span>{CONTENT_FORMAT_LABELS[fmt]}</span>
                     </label>
@@ -314,14 +314,14 @@ export function JobCreateWizard({
                 <label className="text-sm font-medium">Бюджет от</label>
                 <Input type="number" min={1} {...form.register("budgetMin", { valueAsNumber: true })} />
                 {form.formState.errors.budgetMin ? (
-                  <p className="text-xs text-rose-600">{form.formState.errors.budgetMin.message}</p>
+                  <p className="text-xs text-danger">{form.formState.errors.budgetMin.message}</p>
                 ) : null}
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Бюджет до</label>
                 <Input type="number" min={1} {...form.register("budgetMax", { valueAsNumber: true })} />
                 {form.formState.errors.budgetMax ? (
-                  <p className="text-xs text-rose-600">{form.formState.errors.budgetMax.message}</p>
+                  <p className="text-xs text-danger">{form.formState.errors.budgetMax.message}</p>
                 ) : null}
               </div>
               <div className="space-y-2">
@@ -371,7 +371,7 @@ export function JobCreateWizard({
                     }}
                   />
                   {form.formState.errors.deadlineDate ? (
-                    <p className="text-xs text-rose-600">{form.formState.errors.deadlineDate.message as string}</p>
+                    <p className="text-xs text-danger">{form.formState.errors.deadlineDate.message as string}</p>
                   ) : (
                     <p className="text-xs text-muted-foreground">Укажите дату сдачи.</p>
                   )}
@@ -435,13 +435,13 @@ export function JobCreateWizard({
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" className="accent-[hsl(var(--primary))]" {...form.register("needsPosting")} />
+                <input type="checkbox" className="accent-primary" {...form.register("needsPosting")} />
                 Нужна публикация у креатора
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  className="accent-[hsl(var(--primary))]"
+                  className="accent-primary"
                   {...form.register("needsWhitelisting")}
                 />
                 Нужен whitelisting / Spark / partnership
@@ -456,7 +456,7 @@ export function JobCreateWizard({
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  className="accent-[hsl(var(--primary))]"
+                  className="accent-primary"
                   {...form.register("deliverablesIncludeRaw")}
                 />
                 Отдать исходники (raw)
@@ -464,7 +464,7 @@ export function JobCreateWizard({
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  className="accent-[hsl(var(--primary))]"
+                  className="accent-primary"
                   {...form.register("deliverablesIncludeProjectFile")}
                 />
                 Отдать проектный файл
@@ -472,7 +472,7 @@ export function JobCreateWizard({
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  className="accent-[hsl(var(--primary))]"
+                  className="accent-primary"
                   {...form.register("subtitlesRequired")}
                 />
                 Нужны субтитры
@@ -499,7 +499,7 @@ export function JobCreateWizard({
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  className="accent-[hsl(var(--primary))]"
+                  className="accent-primary"
                   {...form.register("scriptProvided")}
                 />
                 Сценарий предоставит бренд
@@ -507,7 +507,7 @@ export function JobCreateWizard({
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  className="accent-[hsl(var(--primary))]"
+                  className="accent-primary"
                   {...form.register("shippingRequired")}
                 />
                 Нужно отправить продукт креатору (доставка)
@@ -645,3 +645,5 @@ export function JobCreateWizard({
     </div>
   );
 }
+
+

@@ -38,8 +38,10 @@ export function JobResubmitButton({ jobId }: Props) {
       <Button onClick={handleClick} disabled={isLoading}>
         {isLoading ? "Отправляем..." : "Отправить на модерацию снова"}
       </Button>
-      {message ? <p className="text-xs text-emerald-700">{message}</p> : null}
-      {error ? <p className="text-xs text-rose-600">{error}</p> : null}
+      {message ? <p className="text-xs text-success">{message}</p> : null}
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
     </div>
   );
 }
+
+

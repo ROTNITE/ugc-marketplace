@@ -35,7 +35,8 @@ export function PayoutCancelButton({ payoutId }: { payoutId: string }) {
       <Button type="button" variant="outline" size="sm" onClick={handleCancel} disabled={isSending}>
         {isSending ? "Отменяем..." : "Отменить"}
       </Button>
-      {error ? <p className="text-xs text-rose-600">{error}</p> : null}
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
     </div>
   );
 }
+

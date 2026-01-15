@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { buildCreatorWhere, buildCreatorOrderBy, parseCreatorListFilters } from "@/lib/creators/filters";
 import { PLATFORM_LABELS, NICHE_LABELS, CURRENCY_LABELS } from "@/lib/constants";
+import { getVerificationStatusBadge } from "@/lib/status-badges";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,8 @@ export default async function CreatorsPage({
             const portfolioLinks = creator.portfolioItems?.map((item) => item.url).filter(Boolean);
             const stats = statsByUserId.get(creator.userId);
             const ratingLabel =
-              stats && stats.count ? `${stats.avg?.toFixed(1) ?? "—"} (${stats.count})` : "—";
+              stats && stats.count ? `${stats.avg?.toFixed(1) ?? "-"} (${stats.count})` : "-";
+            const verificationBadge = getVerificationStatusBadge(creator.verificationStatus);
 
             return (
               <Card key={creator.id}>
@@ -88,7 +90,9 @@ export default async function CreatorsPage({
                     <CardTitle className="text-lg">{name}</CardTitle>
                     <CardDescription>Публичный профиль</CardDescription>
                   </div>
-                  {creator.verificationStatus === "VERIFIED" ? <Badge variant="soft">VERIFIED</Badge> : null}
+                  <Badge variant={verificationBadge.variant} tone={verificationBadge.tone}>
+                    {verificationBadge.label}
+                  </Badge>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
                   <div>

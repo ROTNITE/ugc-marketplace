@@ -49,7 +49,7 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="soft">{isBrand ? "Brand" : isCreator ? "Creator" : "Admin"}</Badge>
+          <Badge variant="soft">{isBrand ? "Бренд" : isCreator ? "Креатор" : "Админ"}</Badge>
           <LogoutButton />
         </div>
       </div>
@@ -87,7 +87,7 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent>
               <Link className="text-primary hover:underline" href="/dashboard/inbox">
-                Открыть inbox
+                Открыть сообщения
               </Link>
             </CardContent>
           </Card>
@@ -151,7 +151,7 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent>
               <Link className="text-primary hover:underline" href="/dashboard/inbox">
-                Открыть inbox
+                Открыть сообщения
               </Link>
             </CardContent>
           </Card>

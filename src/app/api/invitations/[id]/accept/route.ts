@@ -98,13 +98,13 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
         where: { jobId_creatorId: { jobId: invitation.jobId, creatorId: invitation.creatorId } },
         update: {
           status: "PENDING",
-          message: "Accepted invitation",
+          message: "Приглашение принято",
         },
         create: {
           jobId: invitation.jobId,
           creatorId: invitation.creatorId,
           status: "PENDING",
-          message: "Accepted invitation",
+          message: "Приглашение принято",
         },
         select: { id: true },
       });

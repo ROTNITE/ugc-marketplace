@@ -52,7 +52,8 @@ export function ConversationDeleteButton({ conversationId }: Props) {
           <path d="M9 6V4h6v2" />
         </svg>
       </Button>
-      {error ? <p className="text-xs text-rose-600">{error}</p> : null}
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
     </div>
   );
 }
+

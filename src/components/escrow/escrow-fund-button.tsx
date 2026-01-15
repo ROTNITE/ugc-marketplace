@@ -34,7 +34,8 @@ export function EscrowFundButton({ jobId }: { jobId: string }) {
       <Button onClick={handleFund} disabled={isSending}>
         {isSending ? "Пополняем..." : "Пополнить эскроу"}
       </Button>
-      {error ? <p className="text-xs text-rose-600">{error}</p> : null}
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
     </div>
   );
 }
+

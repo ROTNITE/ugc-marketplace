@@ -161,7 +161,7 @@ export function CreatorFilters({ canShowUnverified }: { canShowUnverified: boole
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
-              className="accent-[hsl(var(--primary))]"
+              className="accent-primary"
               checked={verifiedOnly}
               onChange={(e) => setVerifiedOnly(e.target.checked)}
             />
@@ -186,3 +186,4 @@ export function CreatorFilters({ canShowUnverified }: { canShowUnverified: boole
     </div>
   );
 }
+

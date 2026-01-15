@@ -74,17 +74,20 @@ export default async function AdminJobsPage({
 
       <SectionCard title="Фильтры" description="Статус модерации">
         <div className="flex flex-wrap gap-2">
-          {FILTERS.map((item) => (
-            <Link
-              key={item}
-              className={`rounded-md border px-3 py-1 text-sm transition ${
-                item === filter ? "border-primary text-foreground" : "border-border text-muted-foreground hover:text-foreground"
-              }`}
-              href={`/admin/jobs?status=${item}`}
-            >
-              {item}
-            </Link>
-          ))}
+          {FILTERS.map((item) => {
+            const statusBadge = getModerationStatusBadge(item);
+            return (
+              <Link
+                key={item}
+                className={`rounded-md border px-3 py-1 text-sm transition ${
+                  item === filter ? "border-primary text-foreground" : "border-border text-muted-foreground hover:text-foreground"
+                }`}
+                href={`/admin/jobs?status=${item}`}
+              >
+                {statusBadge.label}
+              </Link>
+            );
+          })}
         </div>
       </SectionCard>
 

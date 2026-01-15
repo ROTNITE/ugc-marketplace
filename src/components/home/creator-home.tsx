@@ -81,7 +81,7 @@ export async function CreatorHome({
           <div className="text-xs text-muted-foreground">Активная работа</div>
           <div className="flex items-center gap-2 text-lg font-semibold">
             {activeWorkCount}
-            <Badge variant="soft">PAUSED/IN_REVIEW</Badge>
+            <Badge variant="soft" tone="warning">В работе</Badge>
           </div>
         </div>
         <div className="rounded-lg border border-border/60 bg-card p-3">

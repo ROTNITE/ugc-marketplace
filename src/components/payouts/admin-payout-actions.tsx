@@ -70,10 +70,10 @@ export function AdminPayoutActions({ payoutId }: { payoutId: string }) {
       </div>
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" onClick={reject} disabled={isLoading}>
-          Reject
+          Отклонить
         </Button>
         <Button onClick={approve} disabled={isLoading}>
-          Approve
+          Одобрить
         </Button>
       </div>
     </div>

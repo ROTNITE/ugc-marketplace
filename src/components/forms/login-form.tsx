@@ -53,7 +53,7 @@ export function LoginForm() {
         <label className="text-sm font-medium">Email</label>
         <Input type="email" placeholder="you@example.com" {...form.register("email")} />
         {form.formState.errors.email ? (
-          <p className="text-xs text-rose-600">{form.formState.errors.email.message}</p>
+          <p className="text-xs text-danger">{form.formState.errors.email.message}</p>
         ) : null}
       </div>
 
@@ -61,7 +61,7 @@ export function LoginForm() {
         <label className="text-sm font-medium">Пароль</label>
         <Input type="password" placeholder="••••••••" {...form.register("password")} />
         {form.formState.errors.password ? (
-          <p className="text-xs text-rose-600">{form.formState.errors.password.message}</p>
+          <p className="text-xs text-danger">{form.formState.errors.password.message}</p>
         ) : null}
       </div>
 
@@ -71,3 +71,4 @@ export function LoginForm() {
     </form>
   );
 }
+

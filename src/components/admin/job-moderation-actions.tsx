@@ -66,10 +66,10 @@ export function JobModerationActions({ jobId }: JobModerationActionsProps) {
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={handleApprove} disabled={isLoading}>
-          Approve
+          Одобрить
         </Button>
         <Button size="sm" variant="outline" onClick={handleReject} disabled={isLoading}>
-          Reject
+          Отклонить
         </Button>
       </div>
       <Textarea
@@ -78,7 +78,8 @@ export function JobModerationActions({ jobId }: JobModerationActionsProps) {
         placeholder="Причина отклонения (мин. 10 символов)"
         rows={3}
       />
-      {error ? <p className="text-xs text-rose-600">{error}</p> : null}
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
     </div>
   );
 }
+

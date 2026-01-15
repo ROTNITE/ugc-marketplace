@@ -46,7 +46,8 @@ export function WithdrawButton({
       <Button type="button" variant={variant} size={size} onClick={handleWithdraw} disabled={isSending} className={className}>
         {isSending ? "Отзываем..." : label}
       </Button>
-      {error ? <p className="text-xs text-rose-600">{error}</p> : null}
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
     </div>
   );
 }
+

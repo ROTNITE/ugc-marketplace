@@ -35,7 +35,7 @@ export async function POST(req: Request) {
           role === "BRAND"
             ? {
                 create: {
-                  companyName: (companyName?.trim() || "Brand").slice(0, 120),
+                  companyName: (companyName?.trim() || "Бренд").slice(0, 120),
                   isVerified: false,
                 },
               }

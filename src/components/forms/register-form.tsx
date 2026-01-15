@@ -95,9 +95,9 @@ export function RegisterForm() {
       {isBrand ? (
         <div className="space-y-2">
           <label className="text-sm font-medium">Название компании</label>
-          <Input placeholder="ООО Ромашка / Brand name" {...form.register("companyName")} />
+          <Input placeholder="ООО Ромашка / название бренда" {...form.register("companyName")} />
           {form.formState.errors.companyName ? (
-            <p className="text-xs text-rose-600">{form.formState.errors.companyName.message}</p>
+            <p className="text-xs text-danger">{form.formState.errors.companyName.message}</p>
           ) : null}
         </div>
       ) : null}
@@ -106,7 +106,7 @@ export function RegisterForm() {
         <label className="text-sm font-medium">Email</label>
         <Input type="email" placeholder="you@example.com" {...form.register("email")} />
         {form.formState.errors.email ? (
-          <p className="text-xs text-rose-600">{form.formState.errors.email.message}</p>
+          <p className="text-xs text-danger">{form.formState.errors.email.message}</p>
         ) : null}
       </div>
 
@@ -114,7 +114,7 @@ export function RegisterForm() {
         <label className="text-sm font-medium">Пароль</label>
         <Input type="password" placeholder="минимум 8 символов" {...form.register("password")} />
         {form.formState.errors.password ? (
-          <p className="text-xs text-rose-600">{form.formState.errors.password.message}</p>
+          <p className="text-xs text-danger">{form.formState.errors.password.message}</p>
         ) : null}
       </div>
 
@@ -124,3 +124,4 @@ export function RegisterForm() {
     </form>
   );
 }
+

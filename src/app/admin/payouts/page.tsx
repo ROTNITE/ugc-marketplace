@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { CURRENCY_LABELS } from "@/lib/constants";
 import { AdminPayoutActions } from "@/components/payouts/admin-payout-actions";
+import { getPayoutStatusBadge } from "@/lib/status-badges";
 
 export const dynamic = "force-dynamic";
 
@@ -72,17 +73,20 @@ export default async function AdminPayoutsPage({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {STATUS_OPTIONS.map((item) => (
-          <Link
-            key={item}
-            className={`rounded-md border px-3 py-2 text-sm ${
-              item === status ? "border-primary text-foreground" : "border-border text-muted-foreground hover:text-foreground"
-            }`}
-            href={`/admin/payouts?status=${item}`}
-          >
-            {item}
-          </Link>
-        ))}
+        {STATUS_OPTIONS.map((item) => {
+          const badge = getPayoutStatusBadge(item);
+          return (
+            <Link
+              key={item}
+              className={`rounded-md border px-3 py-2 text-sm ${
+                item === status ? "border-primary text-foreground" : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+              href={`/admin/payouts?status=${item}`}
+            >
+              {badge.label}
+            </Link>
+          );
+        })}
       </div>
 
       {payouts.length === 0 ? (
@@ -94,6 +98,7 @@ export default async function AdminPayoutsPage({
           {payouts.map((payout) => {
             const creatorName = payout.user.name || payout.user.email || "Креатор";
             const currencyLabel = CURRENCY_LABELS[payout.currency] ?? payout.currency;
+            const statusBadge = getPayoutStatusBadge(payout.status);
             return (
               <Card key={payout.id}>
                 <CardHeader>
@@ -105,13 +110,15 @@ export default async function AdminPayoutsPage({
                         {format(payout.createdAt, "dd.MM.yyyy HH:mm", { locale: ru })}
                       </CardDescription>
                     </div>
-                    <Badge variant="soft">{payout.status}</Badge>
+                    <Badge variant={statusBadge.variant} tone={statusBadge.tone}>
+                      {statusBadge.label}
+                    </Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <div className="text-muted-foreground">Метод: {truncate(payout.payoutMethod, 80)}</div>
                   {payout.reason ? (
-                    <div className="text-rose-600 text-xs">Причина: {payout.reason}</div>
+                    <div className="text-danger text-xs">Причина: {payout.reason}</div>
                   ) : null}
                   {payout.status === "PENDING" ? (
                     <AdminPayoutActions payoutId={payout.id} />
@@ -125,3 +132,4 @@ export default async function AdminPayoutsPage({
     </div>
   );
 }
+

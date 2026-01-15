@@ -17,10 +17,10 @@ const base =
   "disabled:opacity-50 disabled:pointer-events-none ring-offset-background";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-primary text-primary-foreground hover:opacity-95",
+  primary: "bg-primary text-primary-foreground hover:bg-primary/90",
   secondary: "bg-muted text-foreground hover:bg-muted/80",
-  outline: "border border-border bg-transparent hover:bg-muted/60",
-  ghost: "bg-transparent hover:bg-muted/60",
+  outline: "border border-border bg-transparent text-foreground hover:bg-muted/60",
+  ghost: "bg-transparent text-foreground hover:bg-muted/60",
   destructive: "bg-danger text-danger-foreground hover:bg-danger/90",
 };
 

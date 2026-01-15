@@ -8,7 +8,7 @@ import { Container } from "@/components/ui/container";
 type NavItem = { label: string; href: string };
 
 const ADMIN_NAV: NavItem[] = [
-  { label: "Admin", href: "/admin" },
+  { label: "Админка", href: "/admin" },
   { label: "Модерация заказов", href: "/admin/jobs?status=PENDING" },
   { label: "Верификация креаторов", href: "/admin/creators?status=PENDING" },
   { label: "Споры", href: "/admin/disputes?status=OPEN" },

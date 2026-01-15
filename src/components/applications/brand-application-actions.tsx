@@ -84,7 +84,8 @@ export function BrandApplicationActions({
       {disableAccept ? (
         <p className="text-xs text-muted-foreground">Исполнитель уже выбран.</p>
       ) : null}
-      {error ? <p className="text-xs text-rose-600">{error}</p> : null}
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
     </div>
   );
 }
+

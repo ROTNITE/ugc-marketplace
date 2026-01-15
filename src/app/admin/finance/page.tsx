@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { FinanceAdjustForm } from "@/components/admin/finance-adjust-form";
 import { CURRENCY_LABELS } from "@/lib/constants";
+import { getEscrowStatusBadge, getRoleBadge } from "@/lib/status-badges";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -90,7 +91,7 @@ export default async function AdminFinancePage({
           Назад в админку
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Финансы</h1>
-        <p className="text-sm text-muted-foreground">Кошельки, эскроу и ledger (только для админов).</p>
+        <p className="text-sm text-muted-foreground">Кошельки, эскроу и журнал операций (только для админов).</p>
       </div>
 
       <Card>
@@ -105,79 +106,92 @@ export default async function AdminFinancePage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Wallets</CardTitle>
+          <CardTitle>Кошельки</CardTitle>
           <CardDescription>Первые 100 по дате обновления.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           {wallets.length === 0 ? (
             <Alert variant="info" title="Нет данных">Кошельки будут созданы при первых операциях.</Alert>
           ) : (
-            wallets.map((wallet) => (
-              <div key={wallet.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/60 p-3">
-                <div>
-                  <div className="font-medium text-foreground">
-                    {wallet.user.name || wallet.user.email || "User"} ({wallet.user.role})
+            wallets.map((wallet) => {
+              const roleBadge = getRoleBadge(wallet.user.role);
+              return (
+                <div key={wallet.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/60 p-3">
+                  <div>
+                    <div className="font-medium text-foreground">
+                      {wallet.user.name || wallet.user.email || "Пользователь"} ({roleBadge.label})
+                    </div>
+                    <div className="text-xs text-muted-foreground">{wallet.user.email}</div>
                   </div>
-                  <div className="text-xs text-muted-foreground">{wallet.user.email}</div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="soft">{wallet.currency}</Badge>
+                    <span className="font-medium">
+                      {Math.round(wallet.balanceCents / 100)} {CURRENCY_LABELS[wallet.currency] ?? wallet.currency}
+                    </span>
+                    <Link className="text-primary hover:underline text-xs" href={`/admin/finance?userId=${wallet.userId}`}>
+                      Журнал
+                    </Link>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="soft">{wallet.currency}</Badge>
-                  <span className="font-medium">
-                    {Math.round(wallet.balanceCents / 100)} {CURRENCY_LABELS[wallet.currency] ?? wallet.currency}
-                  </span>
-                  <Link className="text-primary hover:underline text-xs" href={`/admin/finance?userId=${wallet.userId}`}>
-                    Ledger
-                  </Link>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Escrows</CardTitle>
+          <CardTitle>Эскроу</CardTitle>
           <CardDescription>Первые 100 по дате создания.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           {escrows.length === 0 ? (
             <Alert variant="info" title="Нет эскроу">Появятся после принятия откликов.</Alert>
           ) : (
-            escrows.map((escrow) => (
-              <div key={escrow.id} className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-border/60 p-3">
-                <div className="space-y-1">
-                  <div className="font-medium text-foreground">
-                    Job: <Link className="text-primary hover:underline" href={`/jobs/${escrow.jobId}`}>{escrow.job?.title ?? escrow.jobId}</Link>
+            escrows.map((escrow) => {
+              const escrowBadge = getEscrowStatusBadge(escrow.status);
+              return (
+                <div key={escrow.id} className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-border/60 p-3">
+                  <div className="space-y-1">
+                    <div className="font-medium text-foreground">
+                      Заказ:{" "}
+                      <Link className="text-primary hover:underline" href={`/jobs/${escrow.jobId}`}>
+                        {escrow.job?.title ?? escrow.jobId}
+                      </Link>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Бренд: {escrow.brand?.email ?? "-"} · Креатор: {escrow.creator?.email ?? "-"}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    Brand: {escrow.brand?.email ?? "—"} · Creator: {escrow.creator?.email ?? "—"}
+                  <div className="text-right space-y-1">
+                    <div className="flex flex-wrap items-center gap-2 justify-end">
+                      <Badge variant={escrowBadge.variant} tone={escrowBadge.tone}>
+                        {escrowBadge.label}
+                      </Badge>
+                      <Badge variant="soft">{escrow.currency}</Badge>
+                    </div>
+                    <div className="font-medium">
+                      {Math.round(escrow.amountCents / 100)} {CURRENCY_LABELS[escrow.currency] ?? escrow.currency}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Пополнен: {escrow.fundedAt ? formatDistanceToNow(escrow.fundedAt, { addSuffix: true, locale: ru }) : "-"} ·
+                      Выплачен:{" "}
+                      {escrow.releasedAt ? formatDistanceToNow(escrow.releasedAt, { addSuffix: true, locale: ru }) : "-"} ·
+                      Возврат:{" "}
+                      {escrow.refundedAt ? formatDistanceToNow(escrow.refundedAt, { addSuffix: true, locale: ru }) : "-"}
+                    </div>
                   </div>
                 </div>
-                <div className="text-right space-y-1">
-                  <div className="flex flex-wrap items-center gap-2 justify-end">
-                    <Badge variant="soft">{escrow.status}</Badge>
-                    <Badge variant="soft">{escrow.currency}</Badge>
-                  </div>
-                  <div className="font-medium">
-                    {Math.round(escrow.amountCents / 100)} {CURRENCY_LABELS[escrow.currency] ?? escrow.currency}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    F: {escrow.fundedAt ? formatDistanceToNow(escrow.fundedAt, { addSuffix: true, locale: ru }) : "-"} · Rls:{" "}
-                    {escrow.releasedAt ? formatDistanceToNow(escrow.releasedAt, { addSuffix: true, locale: ru }) : "-"} · Ref:{" "}
-                    {escrow.refundedAt ? formatDistanceToNow(escrow.refundedAt, { addSuffix: true, locale: ru }) : "-"}
-                  </div>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Ledger</CardTitle>
-          <CardDescription>Фильтры по type / userId / escrowId через query string.</CardDescription>
+          <CardTitle>Журнал операций</CardTitle>
+          <CardDescription>Фильтры через строку запроса: type / userId / escrowId.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           {ledger.length === 0 ? (
@@ -201,8 +215,8 @@ export default async function AdminFinancePage({
                 </div>
                 <div className="text-right space-y-1">
                   <div className="font-medium">{entry.amountCents / 100}</div>
-                  <div className="text-xs text-muted-foreground">From: {entry.fromUserId ?? "-"} · To: {entry.toUserId ?? "-"}</div>
-                  <div className="text-xs text-muted-foreground">Escrow: {entry.escrowId ?? "-"}</div>
+                  <div className="text-xs text-muted-foreground">От: {entry.fromUserId ?? "-"} · Кому: {entry.toUserId ?? "-"}</div>
+                  <div className="text-xs text-muted-foreground">Эскроу: {entry.escrowId ?? "-"}</div>
                 </div>
               </div>
             ))

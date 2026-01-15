@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getModerationStatusBadge } from "@/lib/status-badges";
 
 export async function BrandHome({
   userId,
@@ -16,6 +17,7 @@ export async function BrandHome({
     prisma.job.count({ where: { brandId: { in: brandIds }, status: "IN_REVIEW" } }),
     prisma.notification.count({ where: { userId, isRead: false } }),
   ]);
+  const moderationBadge = getModerationStatusBadge("PENDING");
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 space-y-6">
@@ -79,7 +81,9 @@ export async function BrandHome({
           <div className="text-xs text-muted-foreground">На модерации</div>
           <div className="flex items-center gap-2 text-lg font-semibold">
             {pendingModerationCount}
-            <Badge variant="soft">PENDING</Badge>
+            <Badge variant={moderationBadge.variant} tone={moderationBadge.tone}>
+              {moderationBadge.label}
+            </Badge>
           </div>
         </div>
         <div className="rounded-lg border border-border/60 bg-card p-3">

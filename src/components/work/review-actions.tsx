@@ -82,10 +82,10 @@ export function ReviewActions({ jobId }: { jobId: string }) {
       </div>
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" onClick={requestChanges} disabled={isLoading}>
-          Request changes
+          Запросить правки
         </Button>
         <Button onClick={approve} disabled={isLoading}>
-          Approve
+          Одобрить
         </Button>
       </div>
     </div>
