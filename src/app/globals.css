@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --radius: 14px;
+
+  /* Neutral-ish dark-on-light tokens (placeholder) */
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+
+  --muted: 220 14% 96%;
+  --muted-foreground: 215 16% 47%;
+
+  --border: 220 13% 91%;
+  --ring: 222 47% 11%;
+
+  /* Accent: slightly neon but still clean (placeholder) */
+  --primary: 248 90% 60%;
+  --primary-foreground: 0 0% 100%;
+}
+
+.dark {
+  --background: 222 47% 7%;
+  --foreground: 210 40% 98%;
+
+  --card: 222 47% 9%;
+  --card-foreground: 210 40% 98%;
+
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+
+  --border: 217 33% 17%;
+  --ring: 212 27% 84%;
+
+  --primary: 248 90% 60%;
+  --primary-foreground: 0 0% 100%;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
+}
+
+::selection {
+  background: hsl(var(--primary) / 0.25);
+}
