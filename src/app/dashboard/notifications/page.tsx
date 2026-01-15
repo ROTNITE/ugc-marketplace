@@ -28,7 +28,14 @@ function getCategory(type: string): FilterKey {
   if (type.startsWith("DISPUTE")) return "disputes";
   if (type.includes("MESSAGE")) return "deals";
   if (type.includes("ESCROW") || type.includes("PAYOUT") || type.includes("BALANCE")) return "payments";
-  if (type.includes("JOB") || type.includes("APPLICATION") || type.includes("INVITATION") || type.includes("SUBMISSION")) {
+  if (
+    type.includes("JOB") ||
+    type.includes("APPLICATION") ||
+    type.includes("INVITATION") ||
+    type.includes("SUBMISSION") ||
+    type.includes("CHANGES") ||
+    type.includes("WORK")
+  ) {
     return "deals";
   }
   return "system";
@@ -61,28 +68,40 @@ export default async function NotificationsPage({
     take: 200,
   });
 
+  const shouldMarkRead = notifications.some((item) => !item.isRead);
+  if (shouldMarkRead) {
+    await prisma.notification.updateMany({
+      where: { userId: user.id, isRead: false },
+      data: { isRead: true },
+    });
+  }
+
+  const resolvedNotifications = shouldMarkRead
+    ? notifications.map((item) => ({ ...item, isRead: true }))
+    : notifications;
+
   const backHref = user.role === "ADMIN" ? "/admin" : "/dashboard";
 
   const counts: Record<FilterKey, number> = {
-    all: notifications.length,
-    unread: notifications.filter((item) => !item.isRead).length,
+    all: resolvedNotifications.length,
+    unread: resolvedNotifications.filter((item) => !item.isRead).length,
     payments: 0,
     deals: 0,
     disputes: 0,
     system: 0,
   };
 
-  for (const item of notifications) {
+  for (const item of resolvedNotifications) {
     const category = getCategory(item.type);
     counts[category] += 1;
   }
 
   const filteredNotifications =
     filter === "all"
-      ? notifications
+      ? resolvedNotifications
       : filter === "unread"
-        ? notifications.filter((item) => !item.isRead)
-        : notifications.filter((item) => getCategory(item.type) === filter);
+        ? resolvedNotifications.filter((item) => !item.isRead)
+        : resolvedNotifications.filter((item) => getCategory(item.type) === filter);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">

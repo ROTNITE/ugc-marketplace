@@ -11,10 +11,9 @@ type NavItem = { label: string; href: string };
 const CREATOR_NAV: NavItem[] = [
   { label: "Обзор", href: "/dashboard" },
   { label: "Сделки", href: "/dashboard/deals" },
-  { label: "Работа", href: "/dashboard/work" },
   { label: "Отклики", href: "/dashboard/applications" },
   { label: "Приглашения", href: "/dashboard/invitations" },
-  { label: "Inbox", href: "/dashboard/inbox" },
+  { label: "Сообщения", href: "/dashboard/inbox" },
   { label: "Баланс", href: "/dashboard/balance" },
   { label: "Отзывы", href: "/dashboard/reviews" },
   { label: "Профиль", href: "/dashboard/profile" },
@@ -25,7 +24,7 @@ const BRAND_NAV: NavItem[] = [
   { label: "Обзор", href: "/dashboard" },
   { label: "Заказы", href: "/dashboard/jobs" },
   { label: "Сделки", href: "/dashboard/deals" },
-  { label: "Inbox", href: "/dashboard/inbox" },
+  { label: "Сообщения", href: "/dashboard/inbox" },
   { label: "Отзывы", href: "/dashboard/reviews" },
   { label: "Профиль", href: "/dashboard/profile" },
   { label: "Уведомления", href: "/dashboard/notifications" },
@@ -59,7 +58,7 @@ export async function DashboardShell({ children }: { children: ReactNode }) {
   }
 
   const navItems = user.role === "BRAND" ? BRAND_NAV : CREATOR_NAV;
-  const roleLabel = user.role === "BRAND" ? "Brand" : "Creator";
+  const roleLabel = user.role === "BRAND" ? "Бренд" : "Креатор";
 
   return (
     <div className="bg-background text-foreground">

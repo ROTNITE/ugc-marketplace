@@ -145,7 +145,7 @@ export function getEscrowStatusBadge(status: string): BadgeStyle {
     case "RELEASED":
       return soft("Выплачен", "success");
     case "REFUNDED":
-      return soft("Возврат", "neutral");
+      return soft("Возвращён", "neutral");
     default:
       return soft(status, "neutral");
   }

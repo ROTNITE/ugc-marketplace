@@ -11,6 +11,7 @@ export function PayoutCancelButton({ payoutId }: { payoutId: string }) {
 
   async function handleCancel() {
     if (isSending) return;
+    if (!confirm("Отменить заявку на выплату?")) return;
     setError(null);
     setIsSending(true);
 

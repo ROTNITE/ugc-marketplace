@@ -19,6 +19,7 @@ export function BrandApplicationActions({
 
   async function handleAccept() {
     if (isLoading || disableAccept) return;
+    if (!confirm("Принять отклик? Остальные отклики будут отклонены.")) return;
     setError(null);
     setIsLoading(true);
 

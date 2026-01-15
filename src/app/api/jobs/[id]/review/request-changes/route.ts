@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isBrandOwner } from "@/lib/authz";
+import { createNotification } from "@/lib/notifications";
 
 const bodySchema = z.object({
   comment: z.string().min(1).max(1000),
@@ -18,7 +19,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const job = await prisma.job.findUnique({
     where: { id: params.id },
-    select: { id: true, brandId: true },
+    select: { id: true, brandId: true, activeCreatorId: true, title: true },
   });
 
   if (!job) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
@@ -63,6 +64,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       data: { status: "PAUSED" },
     }),
   ]);
+
+  if (job.activeCreatorId) {
+    await createNotification(job.activeCreatorId, {
+      type: "CHANGES_REQUESTED",
+      title: "Нужны правки по работе",
+      body: `${job.title}\n${parsed.data.comment}`,
+      href: `/dashboard/work/${job.id}`,
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }

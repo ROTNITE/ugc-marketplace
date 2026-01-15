@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isBrandOwner } from "@/lib/authz";
+import { createNotification } from "@/lib/notifications";
 
 export async function POST(
   _req: Request,
@@ -17,7 +18,7 @@ export async function POST(
   try {
     const job = await prisma.job.findUnique({
       where: { id: params.id },
-      select: { id: true, brandId: true },
+      select: { id: true, brandId: true, title: true },
     });
 
     if (!job) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
@@ -27,7 +28,7 @@ export async function POST(
 
     const application = await prisma.application.findUnique({
       where: { id: params.applicationId },
-      select: { id: true, jobId: true, status: true },
+      select: { id: true, jobId: true, status: true, creatorId: true },
     });
 
     if (!application || application.jobId !== job.id) {
@@ -41,6 +42,13 @@ export async function POST(
     const updated = await prisma.application.update({
       where: { id: application.id },
       data: { status: "REJECTED" },
+    });
+
+    await createNotification(application.creatorId, {
+      type: "APPLICATION_REJECTED",
+      title: "Отклик отклонён",
+      body: job.title,
+      href: "/dashboard/applications",
     });
 
     return NextResponse.json({ ok: true, application: updated });

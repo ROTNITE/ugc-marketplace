@@ -33,7 +33,7 @@ export async function SiteHeader() {
     user?.role === "CREATOR"
       ? [
           { label: "Заказы", href: "/jobs" },
-          { label: "Inbox", href: "/dashboard/inbox", badge: inboxUnread || undefined },
+          { label: "Сообщения", href: "/dashboard/inbox", badge: inboxUnread || undefined },
           { label: "Сделки", href: "/dashboard/deals", badge: creatorDealsUnread || undefined },
           { label: "Баланс", href: "/dashboard/balance" },
           { label: "Отзывы", href: "/dashboard/reviews" },
@@ -43,7 +43,7 @@ export async function SiteHeader() {
         ? [
             { label: "Сделки", href: "/dashboard/deals", badge: brandDealsUnread || undefined },
             { label: "Креаторы", href: "/creators" },
-            { label: "Inbox", href: "/dashboard/inbox", badge: inboxUnread || undefined },
+            { label: "Сообщения", href: "/dashboard/inbox", badge: inboxUnread || undefined },
             { label: "Отзывы", href: "/dashboard/reviews" },
             { label: "Профиль", href: "/dashboard/profile" },
           ]

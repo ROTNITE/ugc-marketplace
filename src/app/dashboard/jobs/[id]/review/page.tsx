@@ -17,6 +17,7 @@ import { DisputeOpenForm } from "@/components/disputes/dispute-open-form";
 import { DisputeMessageForm } from "@/components/disputes/dispute-message-form";
 import { DisputeMessageList } from "@/components/disputes/dispute-message-list";
 import { isBrandOwner } from "@/lib/authz";
+import { getEscrowStatusBadge, getJobStatusBadge, getSubmissionStatusBadge } from "@/lib/status-badges";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +94,8 @@ export default async function JobReviewPage({ params }: { params: { id: string }
   const disputeOpen = dispute?.status === "OPEN";
   const canOpenDispute =
     !disputeOpen && job.status !== "COMPLETED" && job.status !== "CANCELED" && Boolean(job.activeCreatorId);
+  const jobStatusBadge = getJobStatusBadge(job.status, { activeCreatorId: job.activeCreatorId });
+  const escrowStatusBadge = escrow ? getEscrowStatusBadge(escrow.status) : null;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">
@@ -102,7 +105,7 @@ export default async function JobReviewPage({ params }: { params: { id: string }
             Назад к заказам
           </Link>
           <h1 className="text-2xl font-semibold tracking-tight">{job.title}</h1>
-          <p className="text-sm text-muted-foreground">Статус: {job.status}</p>
+          <p className="text-sm text-muted-foreground">Статус: {jobStatusBadge.label}</p>
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <Link className="text-primary hover:underline" href={`/dashboard/jobs/${job.id}/applications`}>
               Отклики
@@ -112,7 +115,9 @@ export default async function JobReviewPage({ params }: { params: { id: string }
             </Link>
           </div>
         </div>
-        <Badge variant="soft">{job.status}</Badge>
+        <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+          {jobStatusBadge.label}
+        </Badge>
       </div>
 
       {disputeOpen ? (
@@ -151,7 +156,11 @@ export default async function JobReviewPage({ params }: { params: { id: string }
             <>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-muted-foreground">Статус:</span>
-                <Badge variant="soft">{escrow.status}</Badge>
+                {escrowStatusBadge ? (
+                  <Badge variant={escrowStatusBadge.variant} tone={escrowStatusBadge.tone}>
+                    {escrowStatusBadge.label}
+                  </Badge>
+                ) : null}
               </div>
               <div>
                 Сумма: <span className="font-medium text-foreground">{escrowAmount}</span> {currencyLabel}
@@ -163,18 +172,25 @@ export default async function JobReviewPage({ params }: { params: { id: string }
                 Выплата креатору: {payoutCents !== null ? Math.round(payoutCents / 100) : "-"} {currencyLabel}
               </div>
               {escrow.status === "UNFUNDED" ? (
-                <EscrowFundButton jobId={job.id} />
+                <Alert variant="warning" title="Эскроу не пополнен">
+                  <p className="text-sm text-muted-foreground">
+                    Средства не зарезервированы. Пополните эскроу, чтобы креатор мог безопасно работать.
+                  </p>
+                  <div className="mt-3">
+                    <EscrowFundButton jobId={job.id} />
+                  </div>
+                </Alert>
               ) : escrow.status === "FUNDED" ? (
                 <Alert variant="success" title="Эскроу пополнен">
-                  После приёмки деньги будут зачислены креатору.
+                  Средства зарезервированы и будут выплачены после приёмки.
                 </Alert>
               ) : escrow.status === "RELEASED" ? (
                 <Alert variant="success" title="Эскроу завершён">
-                  Выплата выполнена.
+                  Выплата креатору выполнена.
                 </Alert>
               ) : (
                 <Alert variant="info" title="Эскроу возвращён">
-                  Средства возвращены.
+                  Средства возвращены бренду.
                 </Alert>
               )}
               {job.status !== "COMPLETED" && job.status !== "CANCELED" && !disputeOpen ? (
@@ -202,7 +218,12 @@ export default async function JobReviewPage({ params }: { params: { id: string }
               <div key={submission.id} className="rounded-md border border-border/60 p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-foreground">Версия {submission.version}</span>
-                  <Badge variant="soft">{submission.status}</Badge>
+                  <Badge
+                    variant={getSubmissionStatusBadge(submission.status).variant}
+                    tone={getSubmissionStatusBadge(submission.status).tone}
+                  >
+                    {getSubmissionStatusBadge(submission.status).label}
+                  </Badge>
                   <span className="text-xs text-muted-foreground">
                     {format(submission.createdAt, "dd.MM.yyyy HH:mm", { locale: ru })}
                   </span>

@@ -14,15 +14,9 @@ import { DisputeOpenForm } from "@/components/disputes/dispute-open-form";
 import { DisputeMessageForm } from "@/components/disputes/dispute-message-form";
 import { DisputeMessageList } from "@/components/disputes/dispute-message-list";
 import { isCreatorOwner } from "@/lib/authz";
+import { getEscrowStatusBadge, getJobStatusBadge, getSubmissionStatusBadge } from "@/lib/status-badges";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_LABELS: Record<string, string> = {
-  PAUSED: "В работе",
-  IN_REVIEW: "На проверке",
-  COMPLETED: "Завершено",
-  CANCELED: "Отменено",
-};
 
 export default async function WorkDetailPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -102,17 +96,19 @@ export default async function WorkDetailPage({ params }: { params: { id: string 
   const disputeOpen = dispute?.status === "OPEN";
   const canOpenDispute =
     !disputeOpen && job.status !== "COMPLETED" && job.status !== "CANCELED" && Boolean(job.activeCreatorId);
+  const jobStatusBadge = getJobStatusBadge(job.status, { activeCreatorId: job.activeCreatorId });
+  const escrowStatusBadge = job.escrow ? getEscrowStatusBadge(job.escrow.status) : null;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <Link className="text-sm text-muted-foreground hover:text-foreground" href="/dashboard/work">
-            Назад к списку работ
+          <Link className="text-sm text-muted-foreground hover:text-foreground" href="/dashboard/deals?tab=work">
+            Назад к сделкам
           </Link>
           <h1 className="text-2xl font-semibold tracking-tight">{job.title}</h1>
           <p className="text-sm text-muted-foreground">
-            Статус: {STATUS_LABELS[job.status] ?? job.status} · Бюджет {job.budgetMin}-{job.budgetMax}{" "}
+            Статус: {jobStatusBadge.label} · Бюджет {job.budgetMin}-{job.budgetMax}{" "}
             {job.currency}
           </p>
           <p className="text-sm text-muted-foreground">
@@ -125,7 +121,9 @@ export default async function WorkDetailPage({ params }: { params: { id: string 
             Открыть публичную карточку заказа
           </Link>
         </div>
-        <Badge variant="soft">{STATUS_LABELS[job.status] ?? job.status}</Badge>
+        <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+          {jobStatusBadge.label}
+        </Badge>
       </div>
 
       {!user.creatorProfileId ? (
@@ -161,27 +159,44 @@ export default async function WorkDetailPage({ params }: { params: { id: string 
           <CardTitle>Эскроу</CardTitle>
           <CardDescription>Оплата за заказ поступает после приёмки.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          {job.escrow ? (
+        <CardContent className="space-y-3 text-sm">
+          {!job.escrow ? (
+            <Alert variant="warning" title="Эскроу не создан">
+              Эскроу появится после принятия отклика брендом.
+            </Alert>
+          ) : (
             <>
-              <div>
-                Статус: <span className="text-foreground font-medium">{job.escrow.status}</span>
+              <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+                Статус:
+                {escrowStatusBadge ? (
+                  <Badge variant={escrowStatusBadge.variant} tone={escrowStatusBadge.tone}>
+                    {escrowStatusBadge.label}
+                  </Badge>
+                ) : null}
               </div>
-              <div>
+              <div className="text-muted-foreground">
                 Сумма (в вашей валюте):{" "}
                 <span className="text-foreground font-medium">{Math.round(escrowAmountCents / 100)}</span>{" "}
                 {payoutCurrencyLabel}
               </div>
-              {job.escrow.status === "RELEASED" ? (
-                <div>Баланс пополнен.</div>
-              ) : job.escrow.status === "REFUNDED" ? (
-                <div>Средства возвращены бренду.</div>
+              {job.escrow.status === "UNFUNDED" ? (
+                <Alert variant="warning" title="Эскроу не пополнен">
+                  Бренд ещё не пополнил эскроу — начало работы на ваш риск.
+                </Alert>
+              ) : job.escrow.status === "FUNDED" ? (
+                <Alert variant="success" title="Эскроу пополнен">
+                  Оплата зарезервирована и будет выплачена после приёмки.
+                </Alert>
+              ) : job.escrow.status === "RELEASED" ? (
+                <Alert variant="success" title="Оплата начислена">
+                  Баланс пополнен, вы можете запросить выплату.
+                </Alert>
               ) : (
-                <div>После утверждения материалы будут оплачены.</div>
+                <Alert variant="info" title="Средства возвращены бренду">
+                  Оплата по этой сделке возвращена бренду.
+                </Alert>
               )}
             </>
-          ) : (
-            <div>Эскроу пока не создан.</div>
           )}
         </CardContent>
       </Card>
@@ -252,7 +267,12 @@ export default async function WorkDetailPage({ params }: { params: { id: string 
               <div key={submission.id} className="rounded-md border border-border/60 p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-foreground">Версия {submission.version}</span>
-                  <Badge variant="soft">{submission.status}</Badge>
+                  <Badge
+                    variant={getSubmissionStatusBadge(submission.status).variant}
+                    tone={getSubmissionStatusBadge(submission.status).tone}
+                  >
+                    {getSubmissionStatusBadge(submission.status).label}
+                  </Badge>
                   <span className="text-xs text-muted-foreground">
                     {format(submission.createdAt, "dd.MM.yyyy HH:mm", { locale: ru })}
                   </span>

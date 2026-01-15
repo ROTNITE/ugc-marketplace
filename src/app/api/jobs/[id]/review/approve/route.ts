@@ -72,10 +72,25 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   });
 
   if (job.activeCreatorId) {
+    const payoutHint =
+      releaseResult.status === "released"
+        ? "Оплата начислена на баланс."
+        : releaseResult.status === "unfunded"
+          ? "Эскроу не пополнен, выплаты не было."
+          : releaseResult.status === "refunded"
+            ? "Эскроу был возвращён бренду."
+            : releaseResult.status === "already_released"
+              ? "Оплата уже была начислена."
+              : releaseResult.status === "missing"
+                ? "Эскроу не создан."
+                : releaseResult.status === "no_active_creator"
+                  ? "Исполнитель не выбран."
+                  : undefined;
+
     await createNotification(job.activeCreatorId, {
       type: "JOB_COMPLETED",
-      title: "Заказ завершён",
-      body: job.title,
+      title: "Работа принята",
+      body: payoutHint ? `${job.title}\n${payoutHint}` : job.title,
       href: `/dashboard/work/${job.id}`,
     });
   }
