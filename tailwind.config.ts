@@ -25,8 +25,7 @@ const config: Config = {
         "pulse-soft": "pulse-soft 2s ease-in-out infinite",
       },
       colors: {
-        // These are placeholders for a future design system.
-        // We'll later replace them with a cohesive palette + tokens.
+        // Core tokens (mapped to CSS variables in globals.css).
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         primary: "hsl(var(--primary))",
@@ -37,6 +36,14 @@ const config: Config = {
         "card-foreground": "hsl(var(--card-foreground))",
         border: "hsl(var(--border))",
         ring: "hsl(var(--ring))",
+        info: "hsl(var(--info))",
+        "info-foreground": "hsl(var(--info-foreground))",
+        success: "hsl(var(--success))",
+        "success-foreground": "hsl(var(--success-foreground))",
+        warning: "hsl(var(--warning))",
+        "warning-foreground": "hsl(var(--warning-foreground))",
+        danger: "hsl(var(--danger))",
+        "danger-foreground": "hsl(var(--danger-foreground))",
       },
       borderRadius: {
         lg: "var(--radius)",

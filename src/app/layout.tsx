@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { SiteHeader } from "@/components/site-header";
-import { SiteFooter } from "@/components/site-footer";
+import { PublicShell } from "@/components/layout/public-shell";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -22,11 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ru" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans`}>
         <Providers>
-          <div className="min-h-screen flex flex-col">
-            <SiteHeader />
-            <main className="flex-1">{children}</main>
-            <SiteFooter />
-          </div>
+          <PublicShell>{children}</PublicShell>
         </Providers>
       </body>
     </html>

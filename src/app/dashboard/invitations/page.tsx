@@ -5,10 +5,14 @@ import Link from "next/link";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { InvitationActions } from "@/components/invitations/invitation-actions";
 import { getCreatorIds } from "@/lib/authz";
 import { getCreatorCompleteness } from "@/lib/profiles/completeness";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { getInvitationStatusBadge } from "@/lib/status-badges";
 
 export const dynamic = "force-dynamic";
 
@@ -69,15 +73,15 @@ export default async function InvitationsPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">
-      <div className="space-y-2">
-        <Link className="text-sm text-muted-foreground hover:text-foreground" href="/dashboard/deals">
-          ← К сделкам
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Приглашения</h1>
-        <p className="text-sm text-muted-foreground">
-          Бренды могут приглашать вас напрямую. Примите, чтобы продолжить общение по заказу.
-        </p>
-      </div>
+      <PageHeader
+        title="Приглашения"
+        description="Бренды могут приглашать вас напрямую. Примите, чтобы продолжить общение по заказу."
+        eyebrow={
+          <Link className="hover:text-foreground" href="/dashboard/deals">
+            Назад к сделкам
+          </Link>
+        }
+      />
 
       {completeness?.missing.length ? (
         <Alert variant="warning" title="Профиль не заполнен">
@@ -96,14 +100,16 @@ export default async function InvitationsPage() {
       ) : null}
 
       {invitations.length === 0 ? (
-        <Alert variant="info" title="Пока нет приглашений">
-          Когда бренд отправит приглашение, оно появится здесь.
-        </Alert>
+        <EmptyState
+          title="Пока нет приглашений"
+          description="Когда бренд отправит приглашение, оно появится здесь."
+        />
       ) : (
         <div className="grid gap-4">
           {invitations.map((inv) => {
             const brandName =
               inv.brand.brandProfile?.companyName || inv.brand.name || inv.brand.email || "Бренд";
+            const invitationBadge = getInvitationStatusBadge(inv.status);
             return (
               <Card key={inv.id}>
                 <CardHeader className="flex flex-row items-start justify-between gap-3">
@@ -114,7 +120,12 @@ export default async function InvitationsPage() {
                       Открыть заказ
                     </Link>
                   </div>
-                  <div className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(inv.createdAt), { addSuffix: true, locale: ru })}</div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <Badge variant={invitationBadge.variant} tone={invitationBadge.tone}>
+                      {invitationBadge.label}
+                    </Badge>
+                    <span>{formatDistanceToNow(new Date(inv.createdAt), { addSuffix: true, locale: ru })}</span>
+                  </div>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                   {inv.message ? (

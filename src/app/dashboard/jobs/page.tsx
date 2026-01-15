@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getBrandIds } from "@/lib/authz";
+import { getJobStatusBadge, getModerationStatusBadge } from "@/lib/status-badges";
 
 export const dynamic = "force-dynamic";
 
@@ -269,6 +270,8 @@ export default async function BrandJobsPage({
             const creatorName = job.activeCreator?.name?.trim() || "Креатор";
             const reason = job.moderationReason?.trim();
             const shortReason = reason && reason.length > 140 ? `${reason.slice(0, 140)}...` : reason;
+            const jobStatusBadge = getJobStatusBadge(job.status, { activeCreatorId: job.activeCreatorId });
+            const moderationBadge = getModerationStatusBadge(job.moderationStatus);
 
             return (
               <Card
@@ -289,8 +292,12 @@ export default async function BrandJobsPage({
                       ) : null}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="soft">{job.status}</Badge>
-                      <Badge variant="soft">{job.moderationStatus}</Badge>
+                      <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+                        {jobStatusBadge.label}
+                      </Badge>
+                      <Badge variant={moderationBadge.variant} tone={moderationBadge.tone}>
+                        {moderationBadge.label}
+                      </Badge>
                     </div>
                   </div>
                 </CardHeader>
@@ -335,7 +342,11 @@ export default async function BrandJobsPage({
                       <Link href={`/dashboard/jobs/${job.id}/applications`}>
                         <Button size="sm" variant="outline">
                           Отклики ({job._count.applications})
-                          {hasUnreadApplications ? <Badge variant="soft" className="ml-2">Новое</Badge> : null}
+                          {hasUnreadApplications ? (
+                            <Badge variant="soft" tone="info" className="ml-2">
+                              Новое
+                            </Badge>
+                          ) : null}
                         </Button>
                       </Link>
                     ) : null}
@@ -344,7 +355,11 @@ export default async function BrandJobsPage({
                       <Link href={`/dashboard/jobs/${job.id}/review`}>
                         <Button size="sm" variant="outline">
                           Приёмка
-                          {hasUnreadReview ? <Badge variant="soft" className="ml-2">Новое</Badge> : null}
+                          {hasUnreadReview ? (
+                            <Badge variant="soft" tone="info" className="ml-2">
+                              Новое
+                            </Badge>
+                          ) : null}
                         </Button>
                       </Link>
                     ) : null}

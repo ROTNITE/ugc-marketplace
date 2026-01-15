@@ -5,11 +5,14 @@ import { ru } from "date-fns/locale";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Alert } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CURRENCY_LABELS } from "@/lib/constants";
 import { PayoutRequestForm } from "@/components/payouts/payout-request-form";
 import { PayoutCancelButton } from "@/components/payouts/payout-cancel-button";
+import { PageHeader } from "@/components/ui/page-header";
+import { SectionCard } from "@/components/ui/section-card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { getPayoutStatusBadge, getRoleBadge } from "@/lib/status-badges";
 
 export const dynamic = "force-dynamic";
 
@@ -21,13 +24,6 @@ const LEDGER_LABELS: Record<string, string> = {
   PAYOUT_APPROVED: "Выплата подтверждена",
   PAYOUT_REJECTED: "Выплата отклонена",
   MANUAL_ADJUSTMENT: "Корректировка баланса",
-};
-
-const PAYOUT_STATUS_LABELS: Record<string, string> = {
-  PENDING: "На рассмотрении",
-  APPROVED: "Одобрено",
-  REJECTED: "Отклонено",
-  CANCELED: "Отменено",
 };
 
 function formatMoney(amountCents: number, currency: string) {
@@ -79,54 +75,44 @@ export default async function BalancePage() {
   const balanceCents = wallet?.balanceCents ?? 0;
   const currency = wallet?.currency ?? "RUB";
   const currencyLabel = (CURRENCY_LABELS as Record<string, string>)[currency] ?? currency;
+  const roleBadge = getRoleBadge("CREATOR");
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <Link className="text-sm text-muted-foreground hover:text-foreground" href="/dashboard">
+      <PageHeader
+        title="Баланс"
+        description="Отслеживайте выплаты и заявки."
+        eyebrow={
+          <Link className="hover:text-foreground" href="/dashboard">
             Назад в кабинет
           </Link>
-          <h1 className="text-2xl font-semibold tracking-tight">Баланс</h1>
-          <p className="text-sm text-muted-foreground">Отслеживайте выплаты и заявки.</p>
+        }
+        actions={
+          <Badge variant={roleBadge.variant} tone={roleBadge.tone}>
+            {roleBadge.label}
+          </Badge>
+        }
+      />
+
+      <SectionCard title="Текущий баланс" description="Доступно к выводу">
+        <div className="text-3xl font-semibold">
+          {formatMoney(balanceCents, currency)}
         </div>
-        <Badge variant="soft">CREATOR</Badge>
-      </div>
+      </SectionCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Текущий баланс</CardTitle>
-          <CardDescription>Доступно к выводу</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-semibold">
-            {formatMoney(balanceCents, currency)}
-          </div>
-        </CardContent>
-      </Card>
+      <SectionCard title="Запросить выплату" description="Укажите сумму и способ получения.">
+        <PayoutRequestForm maxAmountCents={balanceCents} currencyLabel={currencyLabel} />
+      </SectionCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Запросить выплату</CardTitle>
-          <CardDescription>Укажите сумму и способ получения.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <PayoutRequestForm maxAmountCents={balanceCents} currencyLabel={currencyLabel} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>История операций</CardTitle>
-          <CardDescription>Последние 20 движений по балансу.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {ledgerEntries.length === 0 ? (
-            <Alert variant="info" title="Пока нет операций">
-              После первых выплат здесь появится история.
-            </Alert>
-          ) : (
-            ledgerEntries.map((entry) => {
+      <SectionCard title="История операций" description="Последние 20 движений по балансу.">
+        {ledgerEntries.length === 0 ? (
+          <EmptyState
+            title="Пока нет операций"
+            description="После первых выплат здесь появится история."
+          />
+        ) : (
+          <div className="space-y-3 text-sm">
+            {ledgerEntries.map((entry) => {
               const isIncoming = entry.toUserId === user.id;
               return (
                 <div key={entry.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/60 p-3">
@@ -136,49 +122,51 @@ export default async function BalancePage() {
                       {format(entry.createdAt, "dd.MM.yyyy HH:mm", { locale: ru })}
                     </div>
                   </div>
-                  <div className={isIncoming ? "text-emerald-600" : "text-rose-600"}>
+                  <div className={isIncoming ? "text-success" : "text-danger"}>
                     {isIncoming ? "+" : "-"} {formatMoney(entry.amountCents, entry.currency)}
                   </div>
                 </div>
               );
-            })
-          )}
-        </CardContent>
-      </Card>
+            })}
+          </div>
+        )}
+      </SectionCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Заявки на выплату</CardTitle>
-          <CardDescription>Последние 20 заявок.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {payoutRequests.length === 0 ? (
-            <Alert variant="info" title="Заявок нет">
-              Когда вы запросите выплату, она появится здесь.
-            </Alert>
-          ) : (
-            payoutRequests.map((request) => (
-              <div key={request.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/60 p-3">
-                <div>
-                  <div className="font-medium text-foreground">
-                    {formatMoney(request.amountCents, request.currency)}
+      <SectionCard title="Заявки на выплату" description="Последние 20 заявок.">
+        {payoutRequests.length === 0 ? (
+          <EmptyState
+            title="Заявок нет"
+            description="Когда вы запросите выплату, она появится здесь."
+          />
+        ) : (
+          <div className="space-y-3 text-sm">
+            {payoutRequests.map((request) => {
+              const payoutBadge = getPayoutStatusBadge(request.status);
+              return (
+                <div key={request.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/60 p-3">
+                  <div>
+                    <div className="font-medium text-foreground">
+                      {formatMoney(request.amountCents, request.currency)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {format(request.createdAt, "dd.MM.yyyy HH:mm", { locale: ru })}
+                    </div>
+                    {request.reason ? (
+                      <div className="text-xs text-danger">Причина: {request.reason}</div>
+                    ) : null}
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {format(request.createdAt, "dd.MM.yyyy HH:mm", { locale: ru })}
+                  <div className="flex items-center gap-2">
+                    <Badge variant={payoutBadge.variant} tone={payoutBadge.tone}>
+                      {payoutBadge.label}
+                    </Badge>
+                    {request.status === "PENDING" ? <PayoutCancelButton payoutId={request.id} /> : null}
                   </div>
-                  {request.reason ? (
-                    <div className="text-xs text-rose-600">Причина: {request.reason}</div>
-                  ) : null}
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="soft">{PAYOUT_STATUS_LABELS[request.status] ?? request.status}</Badge>
-                  {request.status === "PENDING" ? <PayoutCancelButton payoutId={request.id} /> : null}
-                </div>
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
+              );
+            })}
+          </div>
+        )}
+      </SectionCard>
     </div>
   );
 }

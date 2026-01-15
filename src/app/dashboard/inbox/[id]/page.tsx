@@ -7,8 +7,11 @@ import { prisma } from "@/lib/prisma";
 import { Alert } from "@/components/ui/alert";
 import { MessageComposer } from "@/components/inbox/message-composer";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { SectionCard } from "@/components/ui/section-card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { getRoleBadge, getVerificationStatusBadge } from "@/lib/status-badges";
 
 export const dynamic = "force-dynamic";
 
@@ -127,26 +130,32 @@ export default async function InboxConversationPage({ params }: { params: { id: 
         : counterparty?.role === "ADMIN"
           ? "/admin"
           : null;
+  const roleBadge = getRoleBadge(counterparty?.role);
+  const verificationBadge =
+    counterparty?.role === "CREATOR" && counterparty.creatorProfile?.verificationStatus === "VERIFIED"
+      ? getVerificationStatusBadge(counterparty.creatorProfile.verificationStatus)
+      : null;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 space-y-6">
-      <div className="space-y-2">
-        <Link className="text-sm text-muted-foreground hover:text-foreground" href="/dashboard/inbox">
-        К диалогам
-        </Link>
-        <Card>
-          <CardHeader className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                {getDisplayName(counterparty)}
-                <Badge variant="soft">{getRoleLabel(counterparty?.role)}</Badge>
-                {counterparty?.role === "CREATOR" &&
-                counterparty.creatorProfile?.verificationStatus === "VERIFIED" ? (
-                  <Badge variant="soft">VERIFIED</Badge>
-                ) : null}
-              </CardTitle>
-              <CardDescription>Собеседник</CardDescription>
-            </div>
+      <PageHeader
+        title={getDisplayName(counterparty)}
+        description="Собеседник"
+        eyebrow={
+          <Link className="hover:text-foreground" href="/dashboard/inbox">
+            Назад к диалогам
+          </Link>
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={roleBadge.variant} tone={roleBadge.tone}>
+              {roleBadge.label}
+            </Badge>
+            {verificationBadge ? (
+              <Badge variant={verificationBadge.variant} tone={verificationBadge.tone}>
+                {verificationBadge.label}
+              </Badge>
+            ) : null}
             {profileLink ? (
               <Link href={profileLink}>
                 <Button size="sm" variant="outline">
@@ -154,24 +163,26 @@ export default async function InboxConversationPage({ params }: { params: { id: 
                 </Button>
               </Link>
             ) : null}
-          </CardHeader>
-          {conversation.job ? (
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Заказ:{" "}
-                <Link className="text-primary hover:underline" href={`/jobs/${conversation.job.id}`}>
-                  {conversation.job.title}
-                </Link>
-              </p>
-            </CardContent>
-          ) : null}
-        </Card>
-      </div>
+          </div>
+        }
+      />
+
+      {conversation.job ? (
+        <SectionCard title="Контекст" description="Связанный заказ">
+          <p className="text-sm text-muted-foreground">
+            Заказ:{" "}
+            <Link className="text-primary hover:underline" href={`/jobs/${conversation.job.id}`}>
+              {conversation.job.title}
+            </Link>
+          </p>
+        </SectionCard>
+      ) : null}
 
       {orderedMessages.length === 0 ? (
-        <Alert variant="info" title="Нет сообщений">
-          Сообщений пока нет — напишите первым.
-        </Alert>
+        <EmptyState
+          title="Сообщений пока нет"
+          description="Напишите первым, чтобы начать диалог."
+        />
       ) : (
         <div className="space-y-3">
           {orderedMessages.map((message, index) => {
@@ -180,7 +191,7 @@ export default async function InboxConversationPage({ params }: { params: { id: 
             const prev = index > 0 ? orderedMessages[index - 1] : null;
             const showHeader = !prev || prev.senderId !== message.senderId;
             const senderLabel = isMine ? "Вы" : getDisplayName(message.sender);
-            const roleLabel = getRoleLabel(message.sender?.role);
+            const senderBadge = getRoleBadge(message.sender?.role);
 
             return (
               <div key={message.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
@@ -188,7 +199,9 @@ export default async function InboxConversationPage({ params }: { params: { id: 
                   {showHeader ? (
                     <div className={`flex items-center gap-2 text-xs text-muted-foreground ${isMine ? "justify-end" : "justify-start"}`}>
                       <span className="font-medium text-foreground">{senderLabel}</span>
-                      <Badge variant="soft">{roleLabel}</Badge>
+                      <Badge variant={senderBadge.variant} tone={senderBadge.tone}>
+                        {senderBadge.label}
+                      </Badge>
                     </div>
                   ) : null}
                   <div

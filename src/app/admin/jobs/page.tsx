@@ -8,6 +8,9 @@ import { ModerationStatus } from "@prisma/client";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
+import { SectionCard } from "@/components/ui/section-card";
+import { getJobStatusBadge, getModerationStatusBadge } from "@/lib/status-badges";
 import { JobModerationActions } from "@/components/admin/job-moderation-actions";
 
 export const dynamic = "force-dynamic";
@@ -59,20 +62,18 @@ export default async function AdminJobsPage({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 space-y-6">
-      <div className="space-y-2">
-        <Link className="text-sm text-muted-foreground hover:text-foreground" href="/admin">
-          Назад к админке
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Модерация заказов</h1>
-        <p className="text-sm text-muted-foreground">Проверяйте публикации перед выдачей в ленту.</p>
-      </div>
+      <PageHeader
+        title="Модерация заказов"
+        description="Проверяйте публикации перед выдачей в ленту."
+        eyebrow={
+          <Link className="hover:text-foreground" href="/admin">
+            Назад к админке
+          </Link>
+        }
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Фильтры</CardTitle>
-          <CardDescription>Статус модерации</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
+      <SectionCard title="Фильтры" description="Статус модерации">
+        <div className="flex flex-wrap gap-2">
           {FILTERS.map((item) => (
             <Link
               key={item}
@@ -84,8 +85,8 @@ export default async function AdminJobsPage({
               {item}
             </Link>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </SectionCard>
 
       {jobs.length === 0 ? (
         <Alert variant="info" title="Пока нет заказов">
@@ -100,6 +101,8 @@ export default async function AdminJobsPage({
             const moderatedAt = job.moderatedAt
               ? formatDistanceToNow(new Date(job.moderatedAt), { addSuffix: true, locale: ru })
               : null;
+            const jobStatusBadge = getJobStatusBadge(job.status);
+            const moderationBadge = getModerationStatusBadge(job.moderationStatus);
             return (
               <Card key={job.id}>
                 <CardHeader>
@@ -111,8 +114,12 @@ export default async function AdminJobsPage({
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Badge variant="soft">{job.status}</Badge>
-                      <Badge variant="soft">{job.moderationStatus}</Badge>
+                      <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+                        {jobStatusBadge.label}
+                      </Badge>
+                      <Badge variant={moderationBadge.variant} tone={moderationBadge.tone}>
+                        {moderationBadge.label}
+                      </Badge>
                     </div>
                   </div>
                 </CardHeader>

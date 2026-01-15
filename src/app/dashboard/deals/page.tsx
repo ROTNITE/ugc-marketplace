@@ -14,36 +14,17 @@ import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getBrandIds, getCreatorIds } from "@/lib/authz";
+import {
+  getApplicationStatusBadge,
+  getEscrowStatusBadge,
+  getInvitationStatusBadge,
+  getJobStatusBadge,
+  getModerationStatusBadge,
+  getSubmissionStatusBadge,
+} from "@/lib/status-badges";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_LABELS: Record<string, string> = {
-  PAUSED: "В работе",
-  IN_REVIEW: "На проверке",
-  COMPLETED: "Завершено",
-  PUBLISHED: "Опубликован",
-  DRAFT: "Черновик",
-  CANCELED: "Отменено",
-};
-
-const APPLICATION_STATUS_LABELS: Record<string, string> = {
-  PENDING: "Ожидает",
-  ACCEPTED: "Принят",
-  REJECTED: "Отклонен",
-  WITHDRAWN: "Отозван",
-};
-
-const SUBMISSION_STATUS_LABELS: Record<string, string> = {
-  SUBMITTED: "На проверке",
-  CHANGES_REQUESTED: "Нужны правки",
-  APPROVED: "Принято",
-};
-
-const MODERATION_LABELS: Record<string, string> = {
-  PENDING: "На модерации",
-  APPROVED: "Одобрен",
-  REJECTED: "Отклонен",
-};
 
 type DealsPageProps = {
   searchParams: Record<string, string | string[] | undefined>;
@@ -130,6 +111,7 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
+          status: true,
           createdAt: true,
           message: true,
           job: { select: { id: true, title: true } },
@@ -247,6 +229,7 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
               {invitations.map((invitation) => {
                 const brandName =
                   invitation.brand.brandProfile?.companyName || invitation.brand.name || "Бренд";
+                const invitationBadge = getInvitationStatusBadge(invitation.status);
                 return (
                   <Card key={invitation.id}>
                     <CardHeader>
@@ -255,7 +238,9 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
                           <CardTitle className="text-lg">{invitation.job.title}</CardTitle>
                           <CardDescription>Бренд: {brandName}</CardDescription>
                         </div>
-                        <Badge variant="soft">Приглашение</Badge>
+                        <Badge variant={invitationBadge.variant} tone={invitationBadge.tone}>
+                          {invitationBadge.label}
+                        </Badge>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3 text-sm">
@@ -296,6 +281,7 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
                   addSuffix: true,
                   locale: ru,
                 });
+                const applicationBadge = getApplicationStatusBadge(application.status);
                 const nextHint =
                   application.status === "PENDING"
                     ? "Ждём ответа бренда"
@@ -312,8 +298,8 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
                           <CardTitle className="text-lg">{application.job.title}</CardTitle>
                           <CardDescription>Отправлено {createdAt}</CardDescription>
                         </div>
-                        <Badge variant="soft">
-                          {APPLICATION_STATUS_LABELS[application.status] ?? application.status}
+                        <Badge variant={applicationBadge.variant} tone={applicationBadge.tone}>
+                          {applicationBadge.label}
                         </Badge>
                       </div>
                     </CardHeader>
@@ -345,27 +331,32 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
             />
           ) : (
             <div className="grid gap-4">
-              {jobsInWork.map((job) => (
-                <Card key={job.id}>
-                  <CardHeader>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <CardTitle className="text-lg">{job.title}</CardTitle>
-                        <CardDescription>
-                          Обновлено {formatDistanceToNow(new Date(job.updatedAt), { addSuffix: true, locale: ru })}
-                        </CardDescription>
+              {jobsInWork.map((job) => {
+                const jobStatusBadge = getJobStatusBadge(job.status);
+                return (
+                  <Card key={job.id}>
+                    <CardHeader>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <CardTitle className="text-lg">{job.title}</CardTitle>
+                          <CardDescription>
+                            Обновлено {formatDistanceToNow(new Date(job.updatedAt), { addSuffix: true, locale: ru })}
+                          </CardDescription>
+                        </div>
+                        <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+                          {jobStatusBadge.label}
+                        </Badge>
                       </div>
-                      <Badge variant="soft">{STATUS_LABELS[job.status] ?? job.status}</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm">
-                    <p className="text-muted-foreground">Что дальше: сдайте материалы через страницу работы.</p>
-                    <Link href={`/dashboard/work/${job.id}`}>
-                      <Button size="sm">Открыть работу</Button>
-                    </Link>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm">
+                      <p className="text-muted-foreground">Что дальше: сдайте материалы через страницу работы.</p>
+                      <Link href={`/dashboard/work/${job.id}`}>
+                        <Button size="sm">Открыть работу</Button>
+                      </Link>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )
         ) : null}
@@ -380,9 +371,9 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
             <div className="grid gap-4">
               {jobsInReviewOrChanges.map((job) => {
                 const submission = submissionByJob.get(job.id);
-                const statusLabel = submission?.status
-                  ? SUBMISSION_STATUS_LABELS[submission.status] ?? submission.status
-                  : STATUS_LABELS[job.status] ?? job.status;
+                const statusBadge = submission?.status
+                  ? getSubmissionStatusBadge(submission.status)
+                  : getJobStatusBadge(job.status);
                 const nextHint =
                   submission?.status === "CHANGES_REQUESTED"
                     ? "Бренд запросил правки"
@@ -395,7 +386,9 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
                           <CardTitle className="text-lg">{job.title}</CardTitle>
                           <CardDescription>Что дальше: {nextHint}.</CardDescription>
                         </div>
-                        <Badge variant="soft">{statusLabel}</Badge>
+                        <Badge variant={statusBadge.variant} tone={statusBadge.tone}>
+                          {statusBadge.label}
+                        </Badge>
                       </div>
                     </CardHeader>
                     <CardContent>
@@ -420,6 +413,7 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
             <div className="grid gap-4">
               {jobsCompleted.map((job) => {
                 const canReview = !reviewedJobIds.has(job.id);
+                const jobStatusBadge = getJobStatusBadge(job.status);
                 return (
                   <Card key={job.id}>
                     <CardHeader>
@@ -428,7 +422,9 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
                           <CardTitle className="text-lg">{job.title}</CardTitle>
                           <CardDescription>Заказ завершён.</CardDescription>
                         </div>
-                        <Badge variant="soft">{STATUS_LABELS[job.status] ?? job.status}</Badge>
+                        <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+                          {jobStatusBadge.label}
+                        </Badge>
                       </div>
                     </CardHeader>
                     <CardContent className="flex flex-wrap items-center gap-2">
@@ -534,27 +530,31 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
             />
           ) : (
             <div className="grid gap-4">
-              {moderationJobs.map((job) => (
-                <Card key={job.id}>
-                  <CardHeader>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <CardTitle className="text-lg">{job.title}</CardTitle>
-                        <CardDescription>
-                          {MODERATION_LABELS[job.moderationStatus] ?? job.moderationStatus}
-                        </CardDescription>
+              {moderationJobs.map((job) => {
+                const moderationBadge = getModerationStatusBadge(job.moderationStatus);
+                const jobStatusBadge = getJobStatusBadge(job.status);
+                return (
+                  <Card key={job.id}>
+                    <CardHeader>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <CardTitle className="text-lg">{job.title}</CardTitle>
+                          <CardDescription>{moderationBadge.label}</CardDescription>
+                        </div>
+                        <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+                          {jobStatusBadge.label}
+                        </Badge>
                       </div>
-                      <Badge variant="soft">{STATUS_LABELS[job.status] ?? job.status}</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <p className="text-muted-foreground">Что дальше: дождитесь одобрения модерации.</p>
-                    <Link href={`/jobs/${job.id}`}>
-                      <Button size="sm" variant="outline">Открыть заказ</Button>
-                    </Link>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <p className="text-muted-foreground">Что дальше: дождитесь одобрения модерации.</p>
+                      <Link href={`/jobs/${job.id}`}>
+                        <Button size="sm" variant="outline">Открыть заказ</Button>
+                      </Link>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )
         ) : null}
@@ -572,25 +572,30 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
             />
           ) : (
             <div className="grid gap-4">
-              {applicationJobs.map((job) => (
-                <Card key={job.id}>
-                  <CardHeader>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <CardTitle className="text-lg">{job.title}</CardTitle>
-                        <CardDescription>Отклики: {job._count.applications}</CardDescription>
+              {applicationJobs.map((job) => {
+                const jobStatusBadge = getJobStatusBadge(job.status);
+                return (
+                  <Card key={job.id}>
+                    <CardHeader>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <CardTitle className="text-lg">{job.title}</CardTitle>
+                          <CardDescription>Отклики: {job._count.applications}</CardDescription>
+                        </div>
+                        <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+                          {jobStatusBadge.label}
+                        </Badge>
                       </div>
-                      <Badge variant="soft">{STATUS_LABELS[job.status] ?? job.status}</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <p className="text-muted-foreground">Что дальше: выберите исполнителя.</p>
-                    <Link href={`/dashboard/jobs/${job.id}/applications`}>
-                      <Button size="sm">Открыть заявки</Button>
-                    </Link>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <p className="text-muted-foreground">Что дальше: выберите исполнителя.</p>
+                      <Link href={`/dashboard/jobs/${job.id}/applications`}>
+                        <Button size="sm">Открыть заявки</Button>
+                      </Link>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )
         ) : null}
@@ -605,6 +610,8 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
             <div className="grid gap-4">
               {activeJobs.map((job) => {
                 const conversationId = conversationByJobId.get(job.id);
+                const jobStatusBadge = getJobStatusBadge(job.status, { activeCreatorId: job.activeCreatorId });
+                const escrowBadge = job.escrow?.status ? getEscrowStatusBadge(job.escrow.status) : null;
                 return (
                   <Card key={job.id}>
                     <CardHeader>
@@ -616,8 +623,14 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
                           </CardDescription>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant="soft">{STATUS_LABELS[job.status] ?? job.status}</Badge>
-                          {job.escrow?.status ? <Badge variant="soft">{job.escrow.status}</Badge> : null}
+                          <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+                            {jobStatusBadge.label}
+                          </Badge>
+                          {escrowBadge ? (
+                            <Badge variant={escrowBadge.variant} tone={escrowBadge.tone}>
+                              {escrowBadge.label}
+                            </Badge>
+                          ) : null}
                         </div>
                       </div>
                     </CardHeader>
@@ -647,30 +660,40 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
             />
           ) : (
             <div className="grid gap-4">
-              {reviewJobs.map((job) => (
-                <Card key={job.id}>
-                  <CardHeader>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <CardTitle className="text-lg">{job.title}</CardTitle>
-                        <CardDescription>
-                          Исполнитель: {job.activeCreator?.name ?? "Не указан"}
-                        </CardDescription>
+              {reviewJobs.map((job) => {
+                const jobStatusBadge = getJobStatusBadge(job.status, { activeCreatorId: job.activeCreatorId });
+                const escrowBadge = job.escrow?.status ? getEscrowStatusBadge(job.escrow.status) : null;
+                return (
+                  <Card key={job.id}>
+                    <CardHeader>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <CardTitle className="text-lg">{job.title}</CardTitle>
+                          <CardDescription>
+                            Исполнитель: {job.activeCreator?.name ?? "Не указан"}
+                          </CardDescription>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+                            {jobStatusBadge.label}
+                          </Badge>
+                          {escrowBadge ? (
+                            <Badge variant={escrowBadge.variant} tone={escrowBadge.tone}>
+                              {escrowBadge.label}
+                            </Badge>
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="soft">{STATUS_LABELS[job.status] ?? job.status}</Badge>
-                        {job.escrow?.status ? <Badge variant="soft">{job.escrow.status}</Badge> : null}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <p className="text-muted-foreground">Что дальше: принять или запросить правки.</p>
-                    <Link href={`/dashboard/jobs/${job.id}/review`}>
-                      <Button size="sm">Открыть приёмку</Button>
-                    </Link>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <p className="text-muted-foreground">Что дальше: принять или запросить правки.</p>
+                      <Link href={`/dashboard/jobs/${job.id}/review`}>
+                        <Button size="sm">Открыть приёмку</Button>
+                      </Link>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )
         ) : null}
@@ -685,6 +708,8 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
             <div className="grid gap-4">
               {completedJobs.map((job) => {
                 const canReview = !reviewedJobIds.has(job.id);
+                const jobStatusBadge = getJobStatusBadge(job.status, { activeCreatorId: job.activeCreatorId });
+                const escrowBadge = job.escrow?.status ? getEscrowStatusBadge(job.escrow.status) : null;
                 return (
                   <Card key={job.id}>
                     <CardHeader>
@@ -696,8 +721,14 @@ export default async function DealsPage({ searchParams }: DealsPageProps) {
                           </CardDescription>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant="soft">{STATUS_LABELS[job.status] ?? job.status}</Badge>
-                          {job.escrow?.status ? <Badge variant="soft">{job.escrow.status}</Badge> : null}
+                          <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+                            {jobStatusBadge.label}
+                          </Badge>
+                          {escrowBadge ? (
+                            <Badge variant={escrowBadge.variant} tone={escrowBadge.tone}>
+                              {escrowBadge.label}
+                            </Badge>
+                          ) : null}
                         </div>
                       </div>
                     </CardHeader>

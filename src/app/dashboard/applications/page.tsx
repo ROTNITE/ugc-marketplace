@@ -11,22 +11,11 @@ import { PLATFORM_LABELS, NICHE_LABELS, CURRENCY_LABELS } from "@/lib/constants"
 import { WithdrawButton } from "@/components/applications/withdraw-button";
 import { Button } from "@/components/ui/button";
 import { getCreatorIds } from "@/lib/authz";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { getApplicationStatusBadge, getJobStatusBadge } from "@/lib/status-badges";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_LABELS = {
-  PENDING: "Ожидает",
-  ACCEPTED: "Принят",
-  REJECTED: "Отклонен",
-  WITHDRAWN: "Отозван",
-} as const;
-
-const JOB_STATUS_LABELS: Record<string, string> = {
-  PUBLISHED: "Опубликован",
-  PAUSED: "В работе",
-  IN_REVIEW: "На проверке",
-  COMPLETED: "Завершено",
-};
 
 export default async function ApplicationsPage() {
   const session = await getServerSession(authOptions);
@@ -127,16 +116,16 @@ export default async function ApplicationsPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 space-y-6">
-      <div className="space-y-1">
-        <Link className="text-sm text-muted-foreground hover:text-foreground" href="/dashboard/deals">
-          ← К сделкам
-        </Link>
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-semibold tracking-tight">Мои отклики</h1>
-          {unreadAcceptanceCount ? <Badge variant="soft">Новое</Badge> : null}
-        </div>
-        <p className="text-sm text-muted-foreground">Все заявки, которые вы отправили брендам.</p>
-      </div>
+      <PageHeader
+        title="Мои отклики"
+        description="Все заявки, которые вы отправили брендам."
+        eyebrow={
+          <Link className="hover:text-foreground" href="/dashboard/deals">
+            Назад к сделкам
+          </Link>
+        }
+        actions={unreadAcceptanceCount ? <Badge variant="soft" tone="info">Новое</Badge> : null}
+      />
 
       {isProfileEmpty ? (
         <Alert variant="info" title="Профиль не заполнен">
@@ -148,17 +137,23 @@ export default async function ApplicationsPage() {
       ) : null}
 
       {applications.length === 0 ? (
-        <Alert variant="info" title="Пока нет откликов">
-          <Link className="text-primary hover:underline" href="/jobs">
-            Найти заказы
-          </Link>
-        </Alert>
+        <EmptyState
+          title="Пока нет откликов"
+          description="Откликнитесь на заказ из ленты, чтобы начать работу."
+          action={
+            <Link className="text-primary hover:underline" href="/jobs">
+              Найти заказы
+            </Link>
+          }
+        />
       ) : (
         <div className="grid gap-4">
           {applications.map((application) => {
             const job = application.job;
             const createdAt = formatDistanceToNow(new Date(application.createdAt), { addSuffix: true, locale: ru });
             const conversationId = conversationByJobId.get(job.id);
+            const applicationBadge = getApplicationStatusBadge(application.status);
+            const jobStatusBadge = getJobStatusBadge(application.job.status);
 
             return (
               <Card key={application.id}>
@@ -175,8 +170,12 @@ export default async function ApplicationsPage() {
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <Badge variant="soft">{STATUS_LABELS[application.status]}</Badge>
-                      <Badge variant="soft">{JOB_STATUS_LABELS[application.job.status] ?? application.job.status}</Badge>
+                      <Badge variant={applicationBadge.variant} tone={applicationBadge.tone}>
+                        {applicationBadge.label}
+                      </Badge>
+                      <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+                        {jobStatusBadge.label}
+                      </Badge>
                       <span>{createdAt}</span>
                     </div>
                   </div>
