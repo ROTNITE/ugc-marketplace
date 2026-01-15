@@ -73,6 +73,7 @@ Open: http://localhost:3000
 3) При деплое: `npm run db:deploy` (применяет накопленные миграции)
 4) При необходимости наполнить данными: `npm run db:seed`
 > `db:push` оставить как legacy для быстрых черновиков, но в основной работе используйте миграции.
+> Изменения Telegram binding (например, `TelegramBindingRequest.status/attempts`) проводить только через миграции.
 
 ### Demo accounts
 - **Brand:** `brand@example.com` / `password123`

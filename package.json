@@ -23,6 +23,7 @@
     "db:down": "docker compose down",
     "bot:simulate": "tsx scripts/outbox-consumer.ts --once",
     "outbox:worker": "tsx scripts/outbox-consumer.ts --watch",
+    "telegram:worker": "tsx scripts/telegram-worker.ts --watch",
     "smoke": "tsx scripts/smoke.ts",
     "typecheck": "tsc --noEmit"
   },

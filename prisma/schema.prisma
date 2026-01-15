@@ -318,12 +318,20 @@ model TelegramBindingRequest {
   userId    String @db.Uuid
   user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   codeHash  String
+  status    TelegramBindingStatus @default(PENDING)
+  attempts  Int @default(0)
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+enum TelegramBindingStatus {
+  PENDING
+  USED
+  EXPIRED
 }
 
 model PortfolioItem {

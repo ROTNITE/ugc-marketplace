@@ -63,7 +63,14 @@ export default async function AdminCreatorsPage({
 
   const result = await prisma.creatorProfile.findMany({
     where,
-    include: {
+    select: {
+      id: true,
+      updatedAt: true,
+      verificationStatus: true,
+      verificationReviewedAt: true,
+      verificationReason: true,
+      verificationCode: true,
+      platforms: true,
       user: { select: { name: true, email: true } },
       portfolioItems: { select: { url: true }, take: 2 },
       verificationReviewedByUser: { select: { name: true, email: true } },

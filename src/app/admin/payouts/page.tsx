@@ -71,7 +71,14 @@ export default async function AdminPayoutsPage({
   const result = await prisma.payoutRequest.findMany({
     where,
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    include: {
+    select: {
+      id: true,
+      amountCents: true,
+      currency: true,
+      payoutMethod: true,
+      status: true,
+      reason: true,
+      createdAt: true,
       user: { select: { id: true, name: true, email: true } },
     },
     take: limit + 1,

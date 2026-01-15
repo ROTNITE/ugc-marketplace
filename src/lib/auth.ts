@@ -1,4 +1,5 @@
 import type { NextAuthOptions, User } from "next-auth";
+import { cache } from "react";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword } from "@/lib/password";
@@ -80,8 +81,27 @@ export async function getCurrentUser() {
   return session?.user ?? null;
 }
 
+const getUserRecord = cache(async (userId: string) =>
+  prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      role: true,
+      brandProfile: { select: { id: true } },
+      creatorProfile: { select: { id: true } },
+    },
+  }),
+);
+
 export async function requireUser() {
   const user = await getCurrentUser();
   if (!user) throw new Error("UNAUTHORIZED");
-  return user;
+  const dbUser = await getUserRecord(user.id);
+  if (!dbUser) throw new Error("STALE_SESSION");
+  return {
+    ...user,
+    role: dbUser.role,
+    brandProfileId: dbUser.brandProfile?.id ?? null,
+    creatorProfileId: dbUser.creatorProfile?.id ?? null,
+  };
 }

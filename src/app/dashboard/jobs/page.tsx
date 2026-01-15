@@ -5,6 +5,8 @@ import { ru } from "date-fns/locale";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import type { Prisma } from "@prisma/client";
+import { JobStatus, ModerationStatus } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
@@ -42,29 +44,29 @@ const TAB_LABELS: Record<TabKey, string> = {
   canceled: "Отменены",
 };
 
-const buildTabWhere = (tab: TabKey, brandIds: string[]) => {
-  const base = { brandId: { in: brandIds } };
+const buildTabWhere = (tab: TabKey, brandIds: string[]): Prisma.JobWhereInput => {
+  const base: Prisma.JobWhereInput = { brandId: { in: brandIds } };
   switch (tab) {
     case "drafts":
-      return { ...base, status: "DRAFT", moderationStatus: { not: "REJECTED" } };
+      return { ...base, status: JobStatus.DRAFT, moderationStatus: { not: ModerationStatus.REJECTED } };
     case "moderation":
-      return { ...base, status: "PUBLISHED", moderationStatus: "PENDING" };
+      return { ...base, status: JobStatus.PUBLISHED, moderationStatus: ModerationStatus.PENDING };
     case "rejected":
-      return { ...base, moderationStatus: "REJECTED" };
+      return { ...base, moderationStatus: ModerationStatus.REJECTED };
     case "published":
-      return { ...base, status: "PUBLISHED", moderationStatus: "APPROVED" };
+      return { ...base, status: JobStatus.PUBLISHED, moderationStatus: ModerationStatus.APPROVED };
     case "paused":
-      return { ...base, status: "PAUSED", activeCreatorId: null };
+      return { ...base, status: JobStatus.PAUSED, activeCreatorId: null };
     case "active":
       return {
         ...base,
         activeCreatorId: { not: null },
-        status: { notIn: ["COMPLETED", "CANCELED"] },
+        status: { notIn: [JobStatus.COMPLETED, JobStatus.CANCELED] },
       };
     case "completed":
-      return { ...base, status: "COMPLETED" };
+      return { ...base, status: JobStatus.COMPLETED };
     case "canceled":
-      return { ...base, status: "CANCELED" };
+      return { ...base, status: JobStatus.CANCELED };
     default:
       return base;
   }
@@ -154,7 +156,7 @@ export default async function BrandJobsPage({
 
   const rawTab = typeof searchParams?.tab === "string" ? searchParams.tab : undefined;
   const activeTab = tabs.some((tab) => tab.key === rawTab) ? (rawTab as TabKey) : tabs[0]?.key ?? "published";
-  const activeCount = counts[activeTab] ?? 0;
+  const activeTabCount = counts[activeTab] ?? 0;
 
   const limit = parseLimit(searchParams ?? {}, { defaultLimit: 50 });
   const cursor = decodeCursor<{ updatedAt: string; id: string }>(parseCursor(searchParams ?? {}));
@@ -300,7 +302,7 @@ export default async function BrandJobsPage({
             </Link>
           }
         />
-      ) : activeCount === 0 ? (
+      ) : activeTabCount === 0 ? (
         <EmptyState title="Пусто" description="В этой вкладке пока нет заказов." />
       ) : (
         <div className="grid gap-4">

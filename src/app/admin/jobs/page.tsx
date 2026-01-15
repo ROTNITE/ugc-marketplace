@@ -66,8 +66,21 @@ export default async function AdminJobsPage({
 
   const result = await prisma.job.findMany({
     where,
-    include: {
-      brand: { include: { brandProfile: true } },
+    select: {
+      id: true,
+      title: true,
+      createdAt: true,
+      status: true,
+      moderationStatus: true,
+      moderationReason: true,
+      moderatedAt: true,
+      brand: {
+        select: {
+          name: true,
+          email: true,
+          brandProfile: { select: { companyName: true } },
+        },
+      },
       moderatedByUser: { select: { id: true, name: true, email: true } },
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],

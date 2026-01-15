@@ -73,13 +73,29 @@ export default async function AdminFinancePage({
       where: walletWhere ? { AND: [walletWhere] } : undefined,
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       take: walletLimit + 1,
-      include: { user: { select: { email: true, role: true, name: true } } },
+      select: {
+        id: true,
+        userId: true,
+        balanceCents: true,
+        currency: true,
+        updatedAt: true,
+        user: { select: { email: true, role: true, name: true } },
+      },
     }),
     prisma.escrow.findMany({
       where: escrowWhere ? { AND: [escrowWhere] } : undefined,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: escrowLimit + 1,
-      include: {
+      select: {
+        id: true,
+        jobId: true,
+        createdAt: true,
+        amountCents: true,
+        currency: true,
+        status: true,
+        fundedAt: true,
+        releasedAt: true,
+        refundedAt: true,
         job: { select: { id: true, title: true } },
         brand: { select: { email: true, name: true } },
         creator: { select: { email: true, name: true } },
@@ -125,6 +141,17 @@ export default async function AdminFinancePage({
     where: ledgerWhere,
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: ledgerLimit + 1,
+    select: {
+      id: true,
+      type: true,
+      currency: true,
+      amountCents: true,
+      createdAt: true,
+      fromUserId: true,
+      toUserId: true,
+      escrowId: true,
+      metadata: true,
+    },
   });
 
   const ledgerPaged = sliceWithNextCursor(ledgerResult, ledgerLimit, (entry) => ({

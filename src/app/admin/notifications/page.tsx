@@ -88,6 +88,15 @@ export default async function AdminNotificationsPage({
     where,
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit + 1,
+    select: {
+      id: true,
+      title: true,
+      body: true,
+      href: true,
+      type: true,
+      isRead: true,
+      createdAt: true,
+    },
   });
 
   const paged = sliceWithNextCursor(result, limit, (item) => ({
@@ -97,16 +106,17 @@ export default async function AdminNotificationsPage({
   const notifications = paged.items;
   const nextCursor = paged.nextCursor;
 
-  const shouldMarkRead = notifications.some((item) => !item.isRead);
-  if (shouldMarkRead) {
+  const unreadIds = notifications.filter((item) => !item.isRead).map((item) => item.id);
+  const unreadIdSet = new Set(unreadIds);
+  if (unreadIds.length > 0) {
     await prisma.notification.updateMany({
-      where: { userId: user.id, isRead: false },
+      where: { userId: user.id, id: { in: unreadIds } },
       data: { isRead: true },
     });
   }
 
-  const resolvedNotifications = shouldMarkRead
-    ? notifications.map((item) => ({ ...item, isRead: true }))
+  const resolvedNotifications = unreadIds.length
+    ? notifications.map((item) => (unreadIdSet.has(item.id) ? { ...item, isRead: true } : item))
     : notifications;
 
   const counts: Record<FilterKey, number> = {

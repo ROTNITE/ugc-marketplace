@@ -88,5 +88,14 @@ export function mapAuthError(error: unknown, requestId: string) {
   if (error.message === "NOT_FOUND") {
     return fail(404, API_ERROR_CODES.NOT_FOUND, "Ресурс не найден.", requestId);
   }
+  if (error.message === "STALE_SESSION") {
+    return fail(
+      401,
+      API_ERROR_CODES.STALE_SESSION,
+      "Сессия устарела. Выйдите и войдите заново.",
+      requestId,
+      { action: "SIGN_IN" },
+    );
+  }
   return null;
 }

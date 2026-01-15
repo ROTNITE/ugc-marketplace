@@ -17,9 +17,10 @@ import {
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
+const seedNow = new Date("2025-01-15T12:00:00.000Z");
 
-function daysFromNow(days: number) {
-  const d = new Date();
+function daysFrom(base: Date, days: number) {
+  const d = new Date(base);
   d.setDate(d.getDate() + days);
   return d;
 }
@@ -57,6 +58,8 @@ async function main() {
         upsert: {
           update: {
             companyName: "Demo Brand",
+            website: "https://example.com",
+            description: "Бренд для демонстрации сценариев UGC-рынка.",
             niche: Niche.FOOD,
             country: "RU",
             city: "Moscow",
@@ -64,6 +67,8 @@ async function main() {
           },
           create: {
             companyName: "Demo Brand",
+            website: "https://example.com",
+            description: "Бренд для демонстрации сценариев UGC-рынка.",
             niche: Niche.FOOD,
             country: "RU",
             city: "Moscow",
@@ -80,10 +85,61 @@ async function main() {
       brandProfile: {
         create: {
           companyName: "Demo Brand",
+          website: "https://example.com",
+          description: "Бренд для демонстрации сценариев UGC-рынка.",
           niche: Niche.FOOD,
           country: "RU",
           city: "Moscow",
           isVerified: true,
+        },
+      },
+    },
+    include: { brandProfile: true },
+  });
+
+  const brandB = await prisma.user.upsert({
+    where: { email: "brand-b@example.com" },
+    update: {
+      name: "Brand B",
+      passwordHash,
+      role: Role.BRAND,
+      brandProfile: {
+        upsert: {
+          update: {
+            companyName: "Brand B",
+            website: "https://brand-b.example.com",
+            description: "Второй бренд для негативных сценариев.",
+            niche: Niche.APPS,
+            country: "RU",
+            city: "Kazan",
+            isVerified: false,
+          },
+          create: {
+            companyName: "Brand B",
+            website: "https://brand-b.example.com",
+            description: "Второй бренд для негативных сценариев.",
+            niche: Niche.APPS,
+            country: "RU",
+            city: "Kazan",
+            isVerified: false,
+          },
+        },
+      },
+    },
+    create: {
+      email: "brand-b@example.com",
+      name: "Brand B",
+      passwordHash,
+      role: Role.BRAND,
+      brandProfile: {
+        create: {
+          companyName: "Brand B",
+          website: "https://brand-b.example.com",
+          description: "Второй бренд для негативных сценариев.",
+          niche: Niche.APPS,
+          country: "RU",
+          city: "Kazan",
+          isVerified: false,
         },
       },
     },
@@ -109,8 +165,8 @@ async function main() {
             currency: Currency.RUB,
             isVerified: true,
             verificationStatus: VerificationStatus.VERIFIED,
-            verifiedAt: new Date(),
-            verificationReviewedAt: new Date(),
+            verifiedAt: seedNow,
+            verificationReviewedAt: seedNow,
             verificationReviewedByUserId: admin.id,
             ratingAvg: 4.7,
             isPublic: true,
@@ -126,8 +182,8 @@ async function main() {
             currency: Currency.RUB,
             isVerified: true,
             verificationStatus: VerificationStatus.VERIFIED,
-            verifiedAt: new Date(),
-            verificationReviewedAt: new Date(),
+            verifiedAt: seedNow,
+            verificationReviewedAt: seedNow,
             verificationReviewedByUserId: admin.id,
             ratingAvg: 4.7,
             isPublic: true,
@@ -152,10 +208,71 @@ async function main() {
           currency: Currency.RUB,
           isVerified: true,
           verificationStatus: VerificationStatus.VERIFIED,
-          verifiedAt: new Date(),
-          verificationReviewedAt: new Date(),
+          verifiedAt: seedNow,
+          verificationReviewedAt: seedNow,
           verificationReviewedByUserId: admin.id,
           ratingAvg: 4.7,
+          isPublic: true,
+        },
+      },
+    },
+    include: { creatorProfile: true },
+  });
+
+  const creatorB = await prisma.user.upsert({
+    where: { email: "creator-b@example.com" },
+    update: {
+      name: "Creator B",
+      passwordHash,
+      role: Role.CREATOR,
+      creatorProfile: {
+        upsert: {
+          update: {
+            bio: "Креатор для проверок чужих ролей.",
+            country: "RU",
+            city: "Perm",
+            languages: ["ru"],
+            niches: [Niche.APPS],
+            platforms: [Platform.TIKTOK],
+            pricePerVideo: 1200,
+            currency: Currency.RUB,
+            isVerified: false,
+            verificationStatus: VerificationStatus.UNVERIFIED,
+            isPublic: true,
+          },
+          create: {
+            bio: "Креатор для проверок чужих ролей.",
+            country: "RU",
+            city: "Perm",
+            languages: ["ru"],
+            niches: [Niche.APPS],
+            platforms: [Platform.TIKTOK],
+            pricePerVideo: 1200,
+            currency: Currency.RUB,
+            isVerified: false,
+            verificationStatus: VerificationStatus.UNVERIFIED,
+            isPublic: true,
+          },
+        },
+      },
+    },
+    create: {
+      email: "creator-b@example.com",
+      name: "Creator B",
+      passwordHash,
+      role: Role.CREATOR,
+      creatorProfile: {
+        create: {
+          bio: "Креатор для проверок чужих ролей.",
+          country: "RU",
+          city: "Perm",
+          languages: ["ru"],
+          niches: [Niche.APPS],
+          platforms: [Platform.TIKTOK],
+          pricePerVideo: 1200,
+          currency: Currency.RUB,
+          isVerified: false,
+          verificationStatus: VerificationStatus.UNVERIFIED,
           isPublic: true,
         },
       },
@@ -176,11 +293,25 @@ async function main() {
       create: { userId: brand.id, currency: Currency.RUB, balanceCents: 0 },
     }),
     prisma.wallet.upsert({
+      where: { userId: brandB.id },
+      update: { currency: Currency.RUB },
+      create: { userId: brandB.id, currency: Currency.RUB, balanceCents: 0 },
+    }),
+    prisma.wallet.upsert({
       where: { userId: creator.id },
       update: { currency: creator.creatorProfile?.currency ?? Currency.RUB },
       create: {
         userId: creator.id,
         currency: creator.creatorProfile?.currency ?? Currency.RUB,
+        balanceCents: 0,
+      },
+    }),
+    prisma.wallet.upsert({
+      where: { userId: creatorB.id },
+      update: { currency: creatorB.creatorProfile?.currency ?? Currency.RUB },
+      create: {
+        userId: creatorB.id,
+        currency: creatorB.creatorProfile?.currency ?? Currency.RUB,
         balanceCents: 0,
       },
     }),
@@ -216,7 +347,10 @@ async function main() {
   }
 
   await prisma.job.deleteMany({
-    where: { brandId: brand.id, title: { startsWith: "[DEMO]" } },
+    where: { title: { startsWith: "[DEMO]" } },
+  });
+  await prisma.job.deleteMany({
+    where: { title: { startsWith: "[E2E]" } },
   });
 
   const publishedJob = await prisma.job.create({
@@ -248,10 +382,10 @@ async function main() {
       budgetMax: 18000,
       currency: Currency.RUB,
       deadlineType: DeadlineType.DATE,
-      deadlineDate: daysFromNow(7),
+      deadlineDate: daysFrom(seedNow, 7),
       status: JobStatus.PUBLISHED,
       moderationStatus: ModerationStatus.APPROVED,
-      moderatedAt: new Date(),
+      moderatedAt: seedNow,
       moderatedByUserId: admin.id,
       brief: {
         product: "Авторский десертный микс",
@@ -289,7 +423,7 @@ async function main() {
       budgetMax: 12000,
       currency: Currency.RUB,
       deadlineType: DeadlineType.DATE,
-      deadlineDate: daysFromNow(14),
+      deadlineDate: daysFrom(seedNow, 14),
       status: JobStatus.DRAFT,
       brief: {
         app: "Планировщик задач",
@@ -340,10 +474,10 @@ async function main() {
       budgetMax: 9000,
       currency: Currency.RUB,
       deadlineType: DeadlineType.DATE,
-      deadlineDate: daysFromNow(-3),
+      deadlineDate: daysFrom(seedNow, -3),
       status: JobStatus.COMPLETED,
       moderationStatus: ModerationStatus.APPROVED,
-      moderatedAt: new Date(),
+      moderatedAt: seedNow,
       moderatedByUserId: admin.id,
       brief: {
         summary: "Демо бриф для отзывов.",
@@ -379,15 +513,89 @@ async function main() {
       budgetMax: 5000,
       currency: Currency.RUB,
       deadlineType: DeadlineType.DATE,
-      deadlineDate: daysFromNow(10),
+      deadlineDate: daysFrom(seedNow, 10),
       status: JobStatus.PUBLISHED,
       moderationStatus: ModerationStatus.REJECTED,
       moderationReason: "Недостаточно подробное описание и примеры контента.",
-      moderatedAt: new Date(),
+      moderatedAt: seedNow,
       moderatedByUserId: admin.id,
       brief: {
         hint: "Добавьте ссылку на пример ролика.",
       },
+    },
+  });
+
+  await prisma.job.create({
+    data: {
+      brandId: brand.id,
+      title: "[E2E] Job for full flow",
+      description: "Эталонный заказ для E2E smoke (apply/accept/fund/submit/approve).",
+      platform: Platform.TIKTOK,
+      niche: Niche.FOOD,
+      deliverablesCount: 1,
+      videoDurationSec: 20,
+      contentFormats: ["REVIEW"] as ContentFormat[],
+      needsPosting: false,
+      needsWhitelisting: false,
+      rightsPackage: RightsPackage.BASIC,
+      usageTermDays: 30,
+      revisionRounds: 1,
+      revisionRoundsIncluded: 1,
+      languages: ["ru"],
+      shippingRequired: false,
+      deliverablesIncludeRaw: false,
+      deliverablesIncludeProjectFile: false,
+      subtitlesRequired: false,
+      musicPolicy: MusicPolicy.BRAND_SAFE,
+      scriptProvided: true,
+      notes: "Smoke flow job.",
+      budgetMin: 4000,
+      budgetMax: 6000,
+      currency: Currency.RUB,
+      deadlineType: DeadlineType.DATE,
+      deadlineDate: daysFrom(seedNow, 5),
+      status: JobStatus.PUBLISHED,
+      moderationStatus: ModerationStatus.APPROVED,
+      moderatedAt: seedNow,
+      moderatedByUserId: admin.id,
+      brief: { source: "smoke" },
+    },
+  });
+
+  await prisma.job.create({
+    data: {
+      brandId: brandB.id,
+      title: "[E2E] Foreign job for negative checks",
+      description: "Чужой заказ для негативных проверок.",
+      platform: Platform.TIKTOK,
+      niche: Niche.APPS,
+      deliverablesCount: 1,
+      videoDurationSec: 15,
+      contentFormats: ["REVIEW"] as ContentFormat[],
+      needsPosting: false,
+      needsWhitelisting: false,
+      rightsPackage: RightsPackage.BASIC,
+      usageTermDays: 30,
+      revisionRounds: 1,
+      revisionRoundsIncluded: 1,
+      languages: ["ru"],
+      shippingRequired: false,
+      deliverablesIncludeRaw: false,
+      deliverablesIncludeProjectFile: false,
+      subtitlesRequired: false,
+      musicPolicy: MusicPolicy.BRAND_SAFE,
+      scriptProvided: false,
+      notes: "Foreign job for authz checks.",
+      budgetMin: 3000,
+      budgetMax: 5000,
+      currency: Currency.RUB,
+      deadlineType: DeadlineType.DATE,
+      deadlineDate: daysFrom(seedNow, 6),
+      status: JobStatus.PUBLISHED,
+      moderationStatus: ModerationStatus.APPROVED,
+      moderatedAt: seedNow,
+      moderatedByUserId: admin.id,
+      brief: { source: "smoke-foreign" },
     },
   });
 
@@ -457,7 +665,9 @@ async function main() {
   console.log("? Done.");
   console.log("?? Demo accounts:");
   console.log("   Brand:   brand@example.com / password123");
+  console.log("   Brand B: brand-b@example.com / password123");
   console.log("   Creator: creator@example.com / password123");
+  console.log("   Creator B: creator-b@example.com / password123");
   console.log("   Admin:   admin@example.com / password123");
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -11,16 +11,28 @@ type TelegramAccount = {
   telegramUsername?: string | null;
 };
 
-type Props = {
-  account: TelegramAccount | null;
+type TelegramBindingRequest = {
+  expiresAt: string;
 };
 
-export function TelegramBindingCard({ account }: Props) {
+type Props = {
+  account: TelegramAccount | null;
+  pendingRequest?: TelegramBindingRequest | null;
+};
+
+export function TelegramBindingCard({ account, pendingRequest = null }: Props) {
   const router = useRouter();
   const [code, setCode] = useState<string | null>(null);
-  const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(pendingRequest?.expiresAt ?? null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [staleSession, setStaleSession] = useState(false);
+
+  useEffect(() => {
+    if (!code) {
+      setExpiresAt(pendingRequest?.expiresAt ?? null);
+    }
+  }, [pendingRequest?.expiresAt, code]);
 
   const formattedExpiry = useMemo(() => {
     if (!expiresAt) return null;
@@ -37,10 +49,17 @@ export function TelegramBindingCard({ account }: Props) {
   async function generateCode() {
     setIsLoading(true);
     setError(null);
+    setStaleSession(false);
     try {
-      const res = await fetch("/api/telegram/bind/code", { method: "POST" });
+      const res = await fetch("/api/telegram/bind/request", { method: "POST" });
       const data = await res.json().catch(() => null);
       if (!res.ok || data?.ok === false) {
+        if (data?.error?.code === "STALE_SESSION") {
+          setStaleSession(true);
+        }
+        if (data?.requestId) {
+          console.error("telegram:bind request failed", data.requestId);
+        }
         setError(data?.error?.message ?? "Не удалось сгенерировать код.");
         return;
       }
@@ -58,10 +77,17 @@ export function TelegramBindingCard({ account }: Props) {
     if (!confirm("Отвязать Telegram?")) return;
     setIsLoading(true);
     setError(null);
+    setStaleSession(false);
     try {
       const res = await fetch("/api/telegram/bind/unlink", { method: "POST" });
       const data = await res.json().catch(() => null);
       if (!res.ok || data?.ok === false) {
+        if (data?.error?.code === "STALE_SESSION") {
+          setStaleSession(true);
+        }
+        if (data?.requestId) {
+          console.error("telegram:bind unlink failed", data.requestId);
+        }
         setError(data?.error?.message ?? "Не удалось отвязать Telegram.");
         return;
       }
@@ -73,6 +99,8 @@ export function TelegramBindingCard({ account }: Props) {
     }
   }
 
+  const statusLabel = account ? "Привязан" : pendingRequest ? "Ожидает подтверждения" : "Не привязан";
+
   return (
     <div className="rounded-lg border border-border/60 bg-card p-4 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -82,12 +110,19 @@ export function TelegramBindingCard({ account }: Props) {
             Привяжите Telegram, чтобы получать уведомления от бота.
           </p>
         </div>
-        <Badge variant="soft">{account ? "Привязан" : "Не привязан"}</Badge>
+        <Badge variant="soft">{statusLabel}</Badge>
       </div>
 
       {error ? (
         <Alert variant="warning" title="Ошибка">
-          {error}
+          <div className="space-y-2">
+            <p>{error}</p>
+            {staleSession ? (
+              <a className="text-primary hover:underline text-sm" href="/api/auth/signout">
+                Выйти и войти заново
+              </a>
+            ) : null}
+          </div>
         </Alert>
       ) : null}
 
@@ -121,10 +156,19 @@ export function TelegramBindingCard({ account }: Props) {
                 <div className="mt-1 text-xs text-muted-foreground">Действует до {formattedExpiry}</div>
               ) : null}
             </div>
+          ) : pendingRequest ? (
+            <Alert variant="info" title="Ожидает подтверждения">
+              Код уже создан. Подтвердите привязку через бота
+              {formattedExpiry ? ` (до ${formattedExpiry}).` : "."}
+            </Alert>
           ) : null}
 
           <Button size="sm" onClick={generateCode} disabled={isLoading}>
-            {isLoading ? "Генерируем..." : code ? "Сгенерировать новый код" : "Сгенерировать код"}
+            {isLoading
+              ? "Генерируем..."
+              : code || pendingRequest
+                ? "Обновить код"
+                : "Сгенерировать код"}
           </Button>
         </div>
       )}

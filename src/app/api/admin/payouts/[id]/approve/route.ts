@@ -1,6 +1,4 @@
-import { getServerSession } from "next-auth/next";
 import { Prisma } from "@prisma/client";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { emitEvent } from "@/lib/outbox";
 import { createNotification } from "@/lib/notifications";
@@ -10,13 +8,7 @@ import { ensureRequestId, fail, mapAuthError, ok } from "@/lib/api/contract";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const requestId = ensureRequestId(req);
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) {
-    return fail(401, API_ERROR_CODES.UNAUTHORIZED, "Требуется авторизация.", requestId);
-  }
-  const authz = await requireAdmin(user).catch((error) => {
+  const authz = await requireAdmin().catch((error) => {
     const mapped = mapAuthError(error, requestId);
     if (mapped) return { errorResponse: mapped };
     return { errorResponse: fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId) };

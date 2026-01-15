@@ -50,6 +50,7 @@ export default async function AdminEventsPage({
     distinct: ["type"],
     select: { type: true },
     orderBy: { type: "asc" },
+    take: 200,
   });
 
   const where: Prisma.OutboxEventWhereInput = {};
@@ -65,6 +66,13 @@ export default async function AdminEventsPage({
     where,
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit + 1,
+    select: {
+      id: true,
+      type: true,
+      payload: true,
+      createdAt: true,
+      processedAt: true,
+    },
   });
 
   const paged = sliceWithNextCursor(result, limit, (event) => ({

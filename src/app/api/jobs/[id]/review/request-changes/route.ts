@@ -1,8 +1,6 @@
-import { getServerSession } from "next-auth/next";
 import { z } from "zod";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requireBrandOwnerOfJob } from "@/lib/authz";
+import { requireBrandOwnerOfJob, requireUser } from "@/lib/authz";
 import { createNotification } from "@/lib/notifications";
 import { API_ERROR_CODES } from "@/lib/api/errors";
 import { ensureRequestId, fail, mapAuthError, ok, parseJson } from "@/lib/api/contract";
@@ -13,12 +11,12 @@ const bodySchema = z.object({
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const requestId = ensureRequestId(req);
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) {
-    return fail(401, API_ERROR_CODES.UNAUTHORIZED, "Требуется авторизация.", requestId);
-  }
+  const user = await requireUser().catch((error) => {
+    const mapped = mapAuthError(error, requestId);
+    if (mapped) return { errorResponse: mapped };
+    return { errorResponse: fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId) };
+  });
+  if ("errorResponse" in user) return user.errorResponse;
   const authz = await requireBrandOwnerOfJob(params.id, user).catch((error) => {
     const mapped = mapAuthError(error, requestId);
     if (mapped) return { errorResponse: mapped };

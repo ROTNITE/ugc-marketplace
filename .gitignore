@@ -8,4 +8,5 @@ out
 *.log
 prisma/dev.db
 .outbox-cursor.json
+.tg-offset.json
 tsconfig.tsbuildinfo

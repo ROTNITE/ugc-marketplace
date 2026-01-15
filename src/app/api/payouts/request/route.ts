@@ -1,40 +1,34 @@
-import { getServerSession } from "next-auth/next";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { emitEvent } from "@/lib/outbox";
 import { createNotification } from "@/lib/notifications";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { API_ERROR_CODES } from "@/lib/api/errors";
-import { ensureRequestId, fail, ok, parseJson } from "@/lib/api/contract";
+import { ensureRequestId, fail, ok, parseJson, mapAuthError } from "@/lib/api/contract";
+import { requireUser } from "@/lib/authz";
 
 export async function POST(req: Request) {
   const requestId = ensureRequestId(req);
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) {
-    return fail(401, API_ERROR_CODES.UNAUTHORIZED, "Требуется авторизация.", requestId);
-  }
-  if (user.role !== "CREATOR") {
-    return fail(403, API_ERROR_CODES.FORBIDDEN, "Недостаточно прав.", requestId);
-  }
-
-  const schema = z.object({
-    amountCents: z.number().int().positive(),
-    payoutMethod: z.string().min(1).max(500),
-  });
-  const parsed = await parseJson(req, schema, requestId);
-  if ("errorResponse" in parsed) return parsed.errorResponse;
-  const amountCents = parsed.data.amountCents;
-  const payoutMethod = parsed.data.payoutMethod.trim();
-
-  if (!payoutMethod) {
-    return fail(400, API_ERROR_CODES.VALIDATION_ERROR, "Укажите способ выплаты.", requestId);
-  }
-
   try {
+    const user = await requireUser();
+    if (user.role !== "CREATOR") {
+      return fail(403, API_ERROR_CODES.FORBIDDEN, "Недостаточно прав.", requestId);
+    }
+
+    const schema = z.object({
+      amountCents: z.number().int().positive(),
+      payoutMethod: z.string().min(1).max(500),
+    });
+    const parsed = await parseJson(req, schema, requestId);
+    if ("errorResponse" in parsed) return parsed.errorResponse;
+    const amountCents = parsed.data.amountCents;
+    const payoutMethod = parsed.data.payoutMethod.trim();
+
+    if (!payoutMethod) {
+      return fail(400, API_ERROR_CODES.VALIDATION_ERROR, "Укажите способ выплаты.", requestId);
+    }
+
     const settings = await getPlatformSettings();
     const result = await prisma.$transaction(async (tx) => {
       const pending = await tx.payoutRequest.findFirst({
@@ -116,6 +110,8 @@ export async function POST(req: Request) {
 
     return ok({ payout: result.payout }, requestId);
   } catch (error) {
+    const mapped = mapAuthError(error, requestId);
+    if (mapped) return mapped;
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return fail(409, API_ERROR_CODES.CONFLICT, "Операция уже была выполнена.", requestId);
     }

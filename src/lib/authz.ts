@@ -1,4 +1,5 @@
 import { getServerSession } from "next-auth/next";
+import { cache } from "react";
 import { authOptions } from "@/lib/auth";
 import type { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +13,18 @@ export type SessionUser = {
   creatorProfileId?: string | null;
 };
 
+const getUserRecord = cache(async (userId: string) =>
+  prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      role: true,
+      brandProfile: { select: { id: true } },
+      creatorProfile: { select: { id: true } },
+    },
+  }),
+);
+
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const session = await getServerSession(authOptions);
   return (session?.user as SessionUser) ?? null;
@@ -22,7 +35,16 @@ export async function requireUser(): Promise<SessionUser> {
   if (!user) {
     throw new Error("UNAUTHORIZED");
   }
-  return user;
+  const dbUser = await getUserRecord(user.id);
+  if (!dbUser) {
+    throw new Error("STALE_SESSION");
+  }
+  return {
+    ...user,
+    role: dbUser.role,
+    brandProfileId: dbUser.brandProfile?.id ?? null,
+    creatorProfileId: dbUser.creatorProfile?.id ?? null,
+  };
 }
 
 export async function requireRole(role: Role | Role[]): Promise<SessionUser> {

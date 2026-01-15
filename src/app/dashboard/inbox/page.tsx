@@ -69,10 +69,25 @@ export default async function InboxPage({
 
   const result = await prisma.conversation.findMany({
     where,
-    include: {
-      participants: { include: { user: { include: { brandProfile: true } } } },
+    select: {
+      id: true,
+      updatedAt: true,
       job: { select: { id: true, title: true, status: true } },
-      messages: { orderBy: { createdAt: "desc" }, take: 1 },
+      participants: {
+        select: {
+          userId: true,
+          lastReadAt: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              brandProfile: { select: { companyName: true } },
+            },
+          },
+        },
+      },
+      messages: { orderBy: { createdAt: "desc" }, take: 1, select: { body: true, createdAt: true } },
     },
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     take: limit + 1,

@@ -61,12 +61,18 @@ export default async function InboxConversationPage({
 
   const conversation = await prisma.conversation.findUnique({
     where: { id: params.id },
-    include: {
+    select: {
+      id: true,
       participants: {
-        include: {
+        select: {
+          userId: true,
+          lastReadAt: true,
           user: {
-            include: {
-              brandProfile: true,
+            select: {
+              id: true,
+              name: true,
+              role: true,
+              brandProfile: { select: { id: true, companyName: true } },
               creatorProfile: { select: { id: true, verificationStatus: true } },
             },
           },
@@ -128,7 +134,11 @@ export default async function InboxConversationPage({
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: messageLimit + 1,
-    include: {
+    select: {
+      id: true,
+      body: true,
+      createdAt: true,
+      senderId: true,
       sender: {
         select: {
           id: true,

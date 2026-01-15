@@ -1,41 +1,35 @@
-import { getServerSession } from "next-auth/next";
 import { Prisma } from "@prisma/client";
-import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { emitEvent } from "@/lib/outbox";
 import { API_ERROR_CODES } from "@/lib/api/errors";
-import { ensureRequestId, fail, ok } from "@/lib/api/contract";
+import { ensureRequestId, fail, ok, mapAuthError } from "@/lib/api/contract";
+import { requireUser } from "@/lib/authz";
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const requestId = ensureRequestId(_req);
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) {
-    return fail(401, API_ERROR_CODES.UNAUTHORIZED, "Требуется авторизация.", requestId);
-  }
-  if (user.role !== "CREATOR") {
-    return fail(403, API_ERROR_CODES.FORBIDDEN, "Недостаточно прав.", requestId);
-  }
-
-  const payout = await prisma.payoutRequest.findUnique({
-    where: { id: params.id },
-  });
-
-  if (!payout || payout.userId !== user.id) {
-    return fail(404, API_ERROR_CODES.NOT_FOUND, "Заявка не найдена.", requestId);
-  }
-
-  if (payout.status !== "PENDING") {
-    return fail(
-      409,
-      API_ERROR_CODES.PAYMENTS_STATE_ERROR,
-      "Можно отменить только заявку в статусе PENDING.",
-      requestId,
-    );
-  }
-
   try {
+    const user = await requireUser();
+    if (user.role !== "CREATOR") {
+      return fail(403, API_ERROR_CODES.FORBIDDEN, "Недостаточно прав.", requestId);
+    }
+
+    const payout = await prisma.payoutRequest.findUnique({
+      where: { id: params.id },
+    });
+
+    if (!payout || payout.userId !== user.id) {
+      return fail(404, API_ERROR_CODES.NOT_FOUND, "Заявка не найдена.", requestId);
+    }
+
+    if (payout.status !== "PENDING") {
+      return fail(
+        409,
+        API_ERROR_CODES.PAYMENTS_STATE_ERROR,
+        "Можно отменить только заявку в статусе PENDING.",
+        requestId,
+      );
+    }
+
     await prisma.$transaction(async (tx) => {
       const updated = await tx.payoutRequest.updateMany({
         where: { id: payout.id, status: "PENDING" },
@@ -71,6 +65,8 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
 
     return ok({ status: "CANCELED" }, requestId);
   } catch (error) {
+    const mapped = mapAuthError(error, requestId);
+    if (mapped) return mapped;
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return fail(409, API_ERROR_CODES.CONFLICT, "Операция уже была выполнена.", requestId);
     }

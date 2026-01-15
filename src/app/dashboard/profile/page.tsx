@@ -91,6 +91,14 @@ export default async function CreatorProfilePage() {
     where: { userId: user.id },
     select: { telegramUserId: true, telegramUsername: true },
   });
+  const telegramRequest = await prisma.telegramBindingRequest.findFirst({
+    where: { userId: user.id, status: "PENDING", expiresAt: { gt: new Date() } },
+    orderBy: { createdAt: "desc" },
+    select: { expiresAt: true },
+  });
+  const pendingTelegramRequest = telegramRequest
+    ? { expiresAt: telegramRequest.expiresAt.toISOString() }
+    : null;
 
   if (user.role === "BRAND") {
     const profile = await prisma.brandProfile.findUnique({
@@ -123,7 +131,7 @@ export default async function CreatorProfilePage() {
           missing={completeness.missing}
         />
 
-        <TelegramBindingCard account={telegramAccount} />
+        <TelegramBindingCard account={telegramAccount} pendingRequest={pendingTelegramRequest} />
 
         <BrandProfileForm initialProfile={initialProfile} />
       </Container>
@@ -182,7 +190,7 @@ export default async function CreatorProfilePage() {
         missing={completeness.missing}
       />
 
-      <TelegramBindingCard account={telegramAccount} />
+      <TelegramBindingCard account={telegramAccount} pendingRequest={pendingTelegramRequest} />
 
       <CreatorProfileForm initialProfile={initialProfile} />
     </Container>

@@ -1,10 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
 import { z } from "zod";
 import { emitEvent } from "@/lib/outbox";
 import { createNotification } from "@/lib/notifications";
-import { requireConversationParticipant } from "@/lib/authz";
+import { requireConversationParticipant, requireUser } from "@/lib/authz";
 import { API_ERROR_CODES } from "@/lib/api/errors";
 import { ensureRequestId, fail, mapAuthError, ok, parseJson } from "@/lib/api/contract";
 import { rateLimit } from "@/lib/api/rate-limit";
@@ -15,12 +13,12 @@ const schema = z.object({
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const requestId = ensureRequestId(req);
-  const session = await getServerSession(authOptions);
-  const user = session?.user;
-
-  if (!user) {
-    return fail(401, API_ERROR_CODES.UNAUTHORIZED, "Требуется авторизация.", requestId);
-  }
+  const user = await requireUser().catch((error) => {
+    const mapped = mapAuthError(error, requestId);
+    if (mapped) return { errorResponse: mapped };
+    return { errorResponse: fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId) };
+  });
+  if ("errorResponse" in user) return user.errorResponse;
 
   const rate = rateLimit(`message:${user.id}`, { windowMs: 30_000, max: 12 });
   if (!rate.allowed) {
