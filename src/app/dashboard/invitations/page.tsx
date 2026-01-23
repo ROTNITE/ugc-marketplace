@@ -6,7 +6,6 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { InvitationActions } from "@/components/invitations/invitation-actions";
 import { getCreatorIds } from "@/lib/authz";
 import { getCreatorCompleteness } from "@/lib/profiles/completeness";
@@ -15,6 +14,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { getInvitationStatusBadge } from "@/lib/status-badges";
 import { Container } from "@/components/ui/container";
 import { Button } from "@/components/ui/button";
+import { DataList, DataListItem } from "@/components/ui/data-list";
 import { buildCreatedAtCursorWhere, decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
@@ -143,17 +143,17 @@ export default async function InvitationsPage({
         />
       ) : (
         <>
-          <div className="grid gap-4">
+          <DataList className="space-y-4">
             {invitations.map((inv) => {
               const brandName =
                 inv.brand.brandProfile?.companyName || inv.brand.name || inv.brand.email || "Бренд";
               const invitationBadge = getInvitationStatusBadge(inv.status);
               return (
-                <Card key={inv.id}>
-                  <CardHeader className="flex flex-row items-start justify-between gap-3">
+                <DataListItem key={inv.id}>
+                  <div className="flex flex-row items-start justify-between gap-3">
                     <div className="space-y-1">
-                      <CardTitle className="text-lg">{inv.job.title}</CardTitle>
-                      <CardDescription>Бренд: {brandName}</CardDescription>
+                      <h3 className="text-ui-base font-ui-semibold leading-tight tracking-tight">{inv.job.title}</h3>
+                      <p className="text-ui-sm text-muted-foreground leading-relaxed">Бренд: {brandName}</p>
                       <Link className="text-primary text-sm hover:underline" href={`/jobs/${inv.job.id}`}>
                         Открыть заказ
                       </Link>
@@ -164,17 +164,17 @@ export default async function InvitationsPage({
                       </Badge>
                       <span>{formatDistanceToNow(new Date(inv.createdAt), { addSuffix: true, locale: ru })}</span>
                     </div>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-3">
+                  </div>
+                  <div className="mt-3 flex flex-col gap-3">
                     {inv.message ? (
                       <p className="text-sm text-muted-foreground whitespace-pre-wrap">{inv.message}</p>
                     ) : null}
                     <InvitationActions invitationId={inv.id} jobId={inv.job.id} />
-                  </CardContent>
-                </Card>
+                  </div>
+                </DataListItem>
               );
             })}
-          </div>
+          </DataList>
           {nextCursor ? (
             <div>
               <Link href={`/dashboard/invitations?${nextParams.toString()}`}>

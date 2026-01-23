@@ -3,32 +3,73 @@ import Link from "next/link";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { Alert } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Container } from "@/components/ui/container";
+import { LogoutButton } from "@/components/dashboard/logout-button";
+import { AppShell } from "@/components/layout/app-shell";
+import type { NavGroup } from "@/components/layout/sidebar-nav";
+import {
+  Bell,
+  Briefcase,
+  ClipboardList,
+  LayoutDashboard,
+  MessageCircle,
+  Star,
+  User,
+  Wallet,
+  Zap,
+} from "lucide-react";
 
-type NavItem = { label: string; href: string };
+const CREATOR_NAV: NavGroup[] = [
+  {
+    title: "Основное",
+      items: [
+      { label: "Обзор", href: "/dashboard", shortLabel: "Обз", icon: <LayoutDashboard className="h-4 w-4" /> },
+      { label: "Сделки", href: "/dashboard/deals", shortLabel: "Сд", icon: <Briefcase className="h-4 w-4" /> },
+      { label: "Отклики", href: "/dashboard/applications", shortLabel: "О", icon: <ClipboardList className="h-4 w-4" /> },
+      { label: "Приглашения", href: "/dashboard/invitations", shortLabel: "П", icon: <Zap className="h-4 w-4" /> },
+      { label: "Алерты", href: "/dashboard/alerts", shortLabel: "А", icon: <Bell className="h-4 w-4" /> },
+      ],
+    },
+    {
+      title: "Коммуникации",
+      items: [
+      { label: "Сообщения", href: "/dashboard/inbox", shortLabel: "Чат", icon: <MessageCircle className="h-4 w-4" /> },
+      { label: "Уведомления", href: "/dashboard/notifications", shortLabel: "Ув", icon: <Bell className="h-4 w-4" /> },
+      ],
+    },
+    {
+      title: "Финансы и профиль",
+      items: [
+      { label: "Баланс", href: "/dashboard/balance", shortLabel: "₽", icon: <Wallet className="h-4 w-4" /> },
+      { label: "Отзывы", href: "/dashboard/reviews", shortLabel: "★", icon: <Star className="h-4 w-4" /> },
+      { label: "Профиль", href: "/dashboard/profile", shortLabel: "Пр", icon: <User className="h-4 w-4" /> },
+      ],
+    },
+  ];
 
-const CREATOR_NAV: NavItem[] = [
-  { label: "Обзор", href: "/dashboard" },
-  { label: "Сделки", href: "/dashboard/deals" },
-  { label: "Отклики", href: "/dashboard/applications" },
-  { label: "Приглашения", href: "/dashboard/invitations" },
-  { label: "Сообщения", href: "/dashboard/inbox" },
-  { label: "Баланс", href: "/dashboard/balance" },
-  { label: "Отзывы", href: "/dashboard/reviews" },
-  { label: "Профиль", href: "/dashboard/profile" },
-  { label: "Уведомления", href: "/dashboard/notifications" },
-];
-
-const BRAND_NAV: NavItem[] = [
-  { label: "Обзор", href: "/dashboard" },
-  { label: "Заказы", href: "/dashboard/jobs" },
-  { label: "Сделки", href: "/dashboard/deals" },
-  { label: "Сообщения", href: "/dashboard/inbox" },
-  { label: "Отзывы", href: "/dashboard/reviews" },
-  { label: "Профиль", href: "/dashboard/profile" },
-  { label: "Уведомления", href: "/dashboard/notifications" },
-];
+const BRAND_NAV: NavGroup[] = [
+  {
+    title: "Основное",
+      items: [
+      { label: "Обзор", href: "/dashboard", shortLabel: "Обз", icon: <LayoutDashboard className="h-4 w-4" /> },
+      { label: "Заказы", href: "/dashboard/jobs", shortLabel: "За", icon: <ClipboardList className="h-4 w-4" /> },
+      { label: "Сделки", href: "/dashboard/deals", shortLabel: "Сд", icon: <Briefcase className="h-4 w-4" /> },
+      ],
+    },
+    {
+      title: "Коммуникации",
+      items: [
+      { label: "Сообщения", href: "/dashboard/inbox", shortLabel: "Чат", icon: <MessageCircle className="h-4 w-4" /> },
+      { label: "Уведомления", href: "/dashboard/notifications", shortLabel: "Ув", icon: <Bell className="h-4 w-4" /> },
+      ],
+    },
+    {
+      title: "Профиль и отзывы",
+      items: [
+      { label: "Отзывы", href: "/dashboard/reviews", shortLabel: "★", icon: <Star className="h-4 w-4" /> },
+      { label: "Профиль", href: "/dashboard/profile", shortLabel: "Пр", icon: <User className="h-4 w-4" /> },
+      ],
+    },
+  ];
 
 export async function DashboardShell({ children }: { children: ReactNode }) {
   const session = await getServerSession(authOptions);
@@ -57,47 +98,19 @@ export async function DashboardShell({ children }: { children: ReactNode }) {
     );
   }
 
-  const navItems = user.role === "BRAND" ? BRAND_NAV : CREATOR_NAV;
-  const roleLabel = user.role === "BRAND" ? "Бренд" : "Креатор";
+  const navGroups = user.role === "BRAND" ? BRAND_NAV : CREATOR_NAV;
+  const rolePreset = user.role === "BRAND" ? "BRAND" : "CREATOR";
+  const title = user.role === "BRAND" ? "Кабинет бренда" : "Кабинет креатора";
 
   return (
-    <div className="bg-background text-foreground">
-      <div className="border-b border-border/60 bg-background/70">
-        <Container className="py-3" motion>
-          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <Badge variant="soft">{roleLabel}</Badge>
-            <span className="text-xs uppercase tracking-wide">Навигация кабинета</span>
-          </div>
-          <details className="mt-2 md:hidden">
-            <summary className="list-none cursor-pointer rounded-md border border-border/60 px-3 py-2 text-sm text-muted-foreground hover:text-foreground">
-              Меню
-            </summary>
-            <nav className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  className="rounded-md px-3 py-2 hover:bg-muted/50 hover:text-foreground"
-                  href={item.href}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </nav>
-          </details>
-          <nav className="mt-2 hidden md:flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                className="px-3 py-2 hover:text-foreground"
-                href={item.href}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </Container>
-      </div>
+    <AppShell
+      role={rolePreset}
+      nav={navGroups}
+      title={title}
+      subtitle="Панель управления"
+      actions={<LogoutButton />}
+    >
       {children}
-    </div>
+    </AppShell>
   );
 }

@@ -527,6 +527,14 @@ async function main() {
     },
   });
 
+  await prisma.job.deleteMany({
+    where: {
+      brandId: brand.id,
+      title: "[E2E] Job for full flow",
+      id: { not: E2E_JOB_ID },
+    },
+  });
+
   const e2eJobData = {
     brandId: brand.id,
     title: "[E2E] Job for full flow",
@@ -574,6 +582,14 @@ async function main() {
 
   await prisma.escrow.deleteMany({
     where: { jobId: E2E_JOB_ID },
+  });
+
+  await prisma.job.deleteMany({
+    where: {
+      brandId: brandB.id,
+      title: "[E2E] Foreign job for negative checks",
+      id: { not: FOREIGN_E2E_JOB_ID },
+    },
   });
 
   const foreignJobData = {

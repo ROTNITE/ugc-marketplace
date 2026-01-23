@@ -12,10 +12,17 @@
   --card: 0 0% 100%;
   --card-foreground: 222 47% 11%;
 
+  --surface: 210 20% 98%;
+  --surface-foreground: 222 47% 11%;
+  --overlay: 0 0% 100%;
+  --overlay-foreground: 222 47% 11%;
+
   --muted: 220 14% 96%;
   --muted-foreground: 215 16% 47%;
 
   --border: 220 13% 91%;
+  --border-soft: 220 13% 94%;
+  --border-strong: 215 12% 82%;
   --ring: 222 47% 11%;
 
   /* Accent */
@@ -31,6 +38,59 @@
   --warning-foreground: 0 0% 100%;
   --danger: 0 72% 45%;
   --danger-foreground: 0 0% 100%;
+
+  /* Role accents */
+  --accent-creator: 286 85% 62%;
+  --accent-creator-foreground: 0 0% 100%;
+  --accent-brand: 210 92% 50%;
+  --accent-brand-foreground: 0 0% 100%;
+  --accent-admin: 222 10% 30%;
+  --accent-admin-foreground: 0 0% 100%;
+
+  /* Glass surface */
+  --glass: 0 0% 100%;
+  --glass-border: 220 13% 90%;
+  --glass-blur: 12px;
+
+  /* Shadows */
+  --shadow-subtle: 0 1px 2px 0 hsl(220 14% 10% / 0.06);
+  --shadow-raised: 0 8px 24px -12px hsl(220 14% 12% / 0.18);
+  --shadow-elevated: 0 16px 40px -20px hsl(220 14% 12% / 0.26);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.12), 0 8px 24px -12px hsl(var(--primary) / 0.35);
+
+  /* Gradients */
+  --gradient-accent: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--info)) 100%);
+  --gradient-mesh: radial-gradient(120% 120% at 0% 0%, hsl(var(--primary) / 0.12) 0%, transparent 55%),
+    radial-gradient(120% 120% at 100% 0%, hsl(var(--info) / 0.12) 0%, transparent 50%),
+    radial-gradient(120% 120% at 50% 100%, hsl(var(--success) / 0.1) 0%, transparent 60%);
+  --gradient-stroke: linear-gradient(90deg, hsl(var(--primary) / 0.35), hsl(var(--info) / 0.35));
+
+  /* Motion */
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+  --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --ease-emphasis: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Typography scale */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --leading-xs: 1.1;
+  --leading-sm: 1.3;
+  --leading-base: 1.5;
+  --leading-lg: 1.5;
+  --leading-xl: 1.35;
+  --leading-2xl: 1.2;
+  --tracking-tight: -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
 }
 
 .dark,
@@ -41,19 +101,46 @@
   --card: 222 47% 9%;
   --card-foreground: 210 40% 98%;
 
+  --surface: 222 47% 11%;
+  --surface-foreground: 210 40% 98%;
+  --overlay: 222 47% 10%;
+  --overlay-foreground: 210 40% 98%;
+
   --muted: 217 33% 17%;
   --muted-foreground: 215 20% 65%;
 
   --border: 217 33% 17%;
+  --border-soft: 217 33% 20%;
+  --border-strong: 217 33% 28%;
   --ring: 212 27% 84%;
 
   --primary: 248 90% 60%;
   --primary-foreground: 0 0% 100%;
 
   --info: 210 90% 70%;
+  --info-foreground: 222 47% 7%;
   --success: 142 65% 55%;
+  --success-foreground: 222 47% 7%;
   --warning: 38 90% 60%;
+  --warning-foreground: 222 47% 7%;
   --danger: 0 80% 65%;
+  --danger-foreground: 222 47% 7%;
+
+  --accent-creator: 286 80% 70%;
+  --accent-creator-foreground: 222 47% 7%;
+  --accent-brand: 210 92% 70%;
+  --accent-brand-foreground: 222 47% 7%;
+  --accent-admin: 210 10% 70%;
+  --accent-admin-foreground: 222 47% 7%;
+
+  --glass: 222 47% 12%;
+  --glass-border: 217 33% 22%;
+  --glass-blur: 12px;
+
+  --shadow-subtle: 0 1px 2px 0 hsl(220 14% 2% / 0.35);
+  --shadow-raised: 0 10px 28px -16px hsl(220 14% 2% / 0.6);
+  --shadow-elevated: 0 20px 50px -24px hsl(220 14% 2% / 0.75);
+  --shadow-glow: 0 0 0 1px hsl(var(--primary) / 0.25), 0 12px 28px -16px hsl(var(--primary) / 0.45);
 }
 
 html, body {

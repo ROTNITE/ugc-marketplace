@@ -9,11 +9,11 @@ import type { Prisma } from "@prisma/client";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { Container } from "@/components/ui/container";
+import { DataList, DataListItem } from "@/components/ui/data-list";
 import { getJobStatusBadge, getModerationStatusBadge } from "@/lib/status-badges";
 import { JobModerationActions } from "@/components/admin/job-moderation-actions";
 import { buildCreatedAtCursorWhere, decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
@@ -144,7 +144,7 @@ export default async function AdminJobsPage({
         <EmptyState title="Пока нет заказов" description="Нет заказов в этом статусе." />
       ) : (
         <>
-          <div className="grid gap-4">
+          <DataList className="space-y-4">
             {jobs.map((job) => {
               const brandName =
                 job.brand.brandProfile?.companyName ?? job.brand.name ?? job.brand.email ?? "Бренд";
@@ -155,26 +155,24 @@ export default async function AdminJobsPage({
               const jobStatusBadge = getJobStatusBadge(job.status);
               const moderationBadge = getModerationStatusBadge(job.moderationStatus);
               return (
-                <Card key={job.id}>
-                  <CardHeader>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <CardTitle>{job.title}</CardTitle>
-                        <CardDescription>
-                          {brandName} · {createdAt}
-                        </CardDescription>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
-                          {jobStatusBadge.label}
-                        </Badge>
-                        <Badge variant={moderationBadge.variant} tone={moderationBadge.tone}>
-                          {moderationBadge.label}
-                        </Badge>
+                <DataListItem key={job.id} className="space-y-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-ui-base font-ui-semibold">{job.title}</div>
+                      <div className="text-ui-xs text-muted-foreground">
+                        {brandName} · {createdAt}
                       </div>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Badge variant={jobStatusBadge.variant} tone={jobStatusBadge.tone}>
+                        {jobStatusBadge.label}
+                      </Badge>
+                      <Badge variant={moderationBadge.variant} tone={moderationBadge.tone}>
+                        {moderationBadge.label}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="space-y-3 text-sm">
                     {job.moderatedAt ? (
                       <div className="text-muted-foreground">
                         Рассмотрено {moderatedAt}
@@ -190,11 +188,11 @@ export default async function AdminJobsPage({
                     {job.moderationStatus === "PENDING" ? (
                       <JobModerationActions jobId={job.id} />
                     ) : null}
-                  </CardContent>
-                </Card>
+                  </div>
+                </DataListItem>
               );
             })}
-          </div>
+          </DataList>
           {nextCursor ? (
             <div>
               <Link href={`/admin/jobs?${nextParams.toString()}`}>

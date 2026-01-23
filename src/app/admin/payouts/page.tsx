@@ -7,14 +7,14 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CURRENCY_LABELS } from "@/lib/constants";
 import { AdminPayoutActions } from "@/components/payouts/admin-payout-actions";
 import { getPayoutStatusBadge } from "@/lib/status-badges";
 import { Container } from "@/components/ui/container";
-import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
+import { DataList, DataListItem } from "@/components/ui/data-list";
+import { PageToolbar, PageToolbarDescription, PageToolbarTitle } from "@/components/ui/page-toolbar";
 import { buildCreatedAtCursorWhere, decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
@@ -108,15 +108,17 @@ export default async function AdminPayoutsPage({
 
   return (
     <Container className="py-10 space-y-6">
-      <PageHeader
-        title="Выплаты"
-        description="Обработка заявок на вывод средств."
-        eyebrow={
-          <Link className="hover:text-foreground" href="/admin">
-            Назад в админку
-          </Link>
-        }
-      />
+      <div className="space-y-2">
+        <Link className="text-ui-sm text-muted-foreground hover:text-foreground" href="/admin">
+          Назад в админку
+        </Link>
+        <PageToolbar className="border-0 pb-0">
+          <div className="space-y-1">
+            <PageToolbarTitle>Выплаты</PageToolbarTitle>
+            <PageToolbarDescription>Обработка заявок на вывод средств.</PageToolbarDescription>
+          </div>
+        </PageToolbar>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {STATUS_OPTIONS.map((item) => {
@@ -139,28 +141,26 @@ export default async function AdminPayoutsPage({
         <EmptyState title="Пока пусто" description="Нет заявок с выбранным статусом." />
       ) : (
         <>
-          <div className="grid gap-4">
+          <DataList className="space-y-4">
             {payouts.map((payout) => {
               const creatorName = payout.user.name || payout.user.email || "Креатор";
               const currencyLabel = CURRENCY_LABELS[payout.currency] ?? payout.currency;
               const statusBadge = getPayoutStatusBadge(payout.status);
               return (
-                <Card key={payout.id}>
-                  <CardHeader>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <CardTitle>{creatorName}</CardTitle>
-                        <CardDescription>
-                          {Math.round(payout.amountCents / 100)} {currencyLabel} ·{" "}
-                          {format(payout.createdAt, "dd.MM.yyyy HH:mm", { locale: ru })}
-                        </CardDescription>
+                <DataListItem key={payout.id} className="space-y-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-ui-base font-ui-semibold">{creatorName}</div>
+                      <div className="text-ui-xs text-muted-foreground">
+                        {Math.round(payout.amountCents / 100)} {currencyLabel} ·{" "}
+                        {format(payout.createdAt, "dd.MM.yyyy HH:mm", { locale: ru })}
                       </div>
-                      <Badge variant={statusBadge.variant} tone={statusBadge.tone}>
-                        {statusBadge.label}
-                      </Badge>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm">
+                    <Badge variant={statusBadge.variant} tone={statusBadge.tone}>
+                      {statusBadge.label}
+                    </Badge>
+                  </div>
+                  <div className="space-y-3 text-sm">
                     <div className="text-muted-foreground">Метод: {truncate(payout.payoutMethod, 80)}</div>
                     {payout.reason ? (
                       <div className="text-danger text-xs">Причина: {payout.reason}</div>
@@ -168,11 +168,11 @@ export default async function AdminPayoutsPage({
                     {payout.status === "PENDING" ? (
                       <AdminPayoutActions payoutId={payout.id} />
                     ) : null}
-                  </CardContent>
-                </Card>
+                  </div>
+                </DataListItem>
               );
             })}
-          </div>
+          </DataList>
           {nextCursor ? (
             <div>
               <Link href={`/admin/payouts?${nextParams.toString()}`}>

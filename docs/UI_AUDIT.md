@@ -12,6 +12,7 @@
 - `/creators` — каталог креаторов с фильтрами, карточками, бейджами верификации.
 - `/creators/[id]` — публичный профиль креатора + приглашение от бренда.
 - `/brands/[id]` — публичный профиль бренда, рейтинг и отзывы.
+- `/ui` — витрина примитивов и токенов (dev‑only, для визуального ревью).
 
 ## Кабинет Brand
 - `/dashboard` — обзорные карточки навигации.
@@ -46,9 +47,10 @@
 - `/admin/finance` — кошельки, эскроу, корректировки.
 - `/admin/events` — outbox события.
 - `/admin/settings` — настройки комиссии и валюты.
+- `/admin/notifications` — уведомления админа (центр событий для модерации/системы).
 
 ## UI‑компоненты (src/components/ui)
-- Alert, Badge, Button, Card, Container, EmptyState, Input, PageHeader, SectionCard, Select, Stat, Stepper, Textarea.
+- Alert, Badge, Button, IconButton, Card, Container, EmptyState, Input, PageHeader, SectionCard, Select, Skeleton, Stat, Stepper, Surface, Table, Tabs, Dialog, Drawer, DropdownMenu, Textarea, DataList, PageToolbar.
 - Примитивы используются выборочно; есть страницы, где заголовки и карточки собраны вручную.
 
 ## Повторяемые блоки вне ui

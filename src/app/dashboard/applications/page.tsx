@@ -6,15 +6,20 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PLATFORM_LABELS, NICHE_LABELS, CURRENCY_LABELS } from "@/lib/constants";
 import { WithdrawButton } from "@/components/applications/withdraw-button";
 import { Button } from "@/components/ui/button";
 import { getCreatorIds } from "@/lib/authz";
-import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getApplicationStatusBadge, getJobStatusBadge } from "@/lib/status-badges";
 import { Container } from "@/components/ui/container";
+import { DataList, DataListItem } from "@/components/ui/data-list";
+import {
+  PageToolbar,
+  PageToolbarActions,
+  PageToolbarDescription,
+  PageToolbarTitle,
+} from "@/components/ui/page-toolbar";
 import { buildCreatedAtCursorWhere, decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
@@ -151,16 +156,20 @@ export default async function ApplicationsPage({
 
   return (
     <Container className="py-10 space-y-6">
-      <PageHeader
-        title="Мои отклики"
-        description="Все заявки, которые вы отправили брендам."
-        eyebrow={
-          <Link className="hover:text-foreground" href="/dashboard/deals">
-            Назад к сделкам
-          </Link>
-        }
-        actions={unreadAcceptanceCount ? <Badge variant="soft" tone="info">Новое</Badge> : null}
-      />
+      <div className="space-y-2">
+        <Link className="hover:text-foreground" href="/dashboard/deals">
+          Назад к сделкам
+        </Link>
+        <PageToolbar className="border-0 pb-0">
+          <div className="space-y-1">
+            <PageToolbarTitle>Мои отклики</PageToolbarTitle>
+            <PageToolbarDescription>Все заявки, которые вы отправили брендам.</PageToolbarDescription>
+          </div>
+          <PageToolbarActions>
+            {unreadAcceptanceCount ? <Badge variant="soft" tone="info">Новое</Badge> : null}
+          </PageToolbarActions>
+        </PageToolbar>
+      </div>
 
       {isProfileEmpty ? (
         <Alert variant="info" title="Профиль не заполнен">
@@ -183,7 +192,7 @@ export default async function ApplicationsPage({
         />
       ) : (
         <>
-          <div className="grid gap-4">
+          <DataList className="space-y-4">
             {applications.map((application) => {
               const job = application.job;
               const createdAt = formatDistanceToNow(new Date(application.createdAt), { addSuffix: true, locale: ru });
@@ -192,18 +201,18 @@ export default async function ApplicationsPage({
               const jobStatusBadge = getJobStatusBadge(application.job.status);
 
               return (
-                <Card key={application.id}>
-                  <CardHeader>
+                <DataListItem key={application.id}>
+                  <div>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <CardTitle>
+                        <h3 className="text-ui-base font-ui-semibold leading-tight tracking-tight">
                           <Link className="hover:underline" href={`/jobs/${job.id}`}>
                             {job.title}
                           </Link>
-                        </CardTitle>
-                        <CardDescription>
+                        </h3>
+                        <p className="text-ui-sm text-muted-foreground leading-relaxed">
                           {PLATFORM_LABELS[job.platform]} · {NICHE_LABELS[job.niche]}
-                        </CardDescription>
+                        </p>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Badge variant={applicationBadge.variant} tone={applicationBadge.tone}>
@@ -215,8 +224,8 @@ export default async function ApplicationsPage({
                         <span>{createdAt}</span>
                       </div>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm">
+                  </div>
+                  <div className="mt-3 space-y-3 text-sm">
                     <div className="text-muted-foreground">
                       Бюджет:{" "}
                       <span className="text-foreground font-medium">
@@ -254,11 +263,11 @@ export default async function ApplicationsPage({
                         )
                       ) : null}
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </DataListItem>
               );
             })}
-          </div>
+          </DataList>
           {nextCursor ? (
             <div>
               <Link href={`/dashboard/applications?${nextParams.toString()}`}>

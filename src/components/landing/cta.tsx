@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { MotionSection } from "@/components/landing/motion";
 
 export function LandingCta() {
   return (
-    <section className="border-t border-border/60 bg-muted/20">
-      <div className="mx-auto max-w-6xl px-4 py-14">
-        <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <MotionSection className="border-t border-border/40">
+      <div className="mx-auto max-w-6xl px-4 py-16">
+        <div className="rounded-3xl border border-border/50 bg-surface/40 p-6 shadow-elevated backdrop-blur transition duration-normal ease-standard hover:shadow-glow sm:p-8">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-2xl font-semibold tracking-tight">Готовы запустить первые UGC-пачки?</h2>
               <p className="mt-2 text-sm text-muted-foreground">
@@ -32,6 +33,6 @@ export function LandingCta() {
           </div>
         </div>
       </div>
-    </section>
+    </MotionSection>
   );
 }

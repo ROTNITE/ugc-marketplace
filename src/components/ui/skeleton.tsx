@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 type SkeletonProps = React.HTMLAttributes<HTMLDivElement>;
 
 export function Skeleton({ className, ...props }: SkeletonProps) {
-  return <div className={cn("animate-pulse rounded-md bg-muted/60", className)} {...props} />;
+  return <div className={cn("animate-pulse rounded-md bg-muted/50", className)} {...props} />;
 }
 
 type ListSkeletonProps = {
@@ -15,7 +15,7 @@ export function ListSkeleton({ rows = 6, className }: ListSkeletonProps) {
   return (
     <div className={cn("space-y-3", className)}>
       {Array.from({ length: rows }, (_, index) => (
-        <div key={index} className="rounded-lg border border-border/60 bg-card p-4">
+        <div key={index} className="rounded-lg border border-border-soft bg-card p-4 shadow-subtle">
           <Skeleton className="h-4 w-2/3" />
           <Skeleton className="mt-2 h-3 w-1/3" />
         </div>
@@ -58,7 +58,7 @@ export function CardGridSkeleton({ cards = 6, className }: CardGridSkeletonProps
   return (
     <div className={cn("grid gap-4 sm:grid-cols-2 lg:grid-cols-3", className)}>
       {Array.from({ length: cards }, (_, index) => (
-        <div key={index} className="rounded-lg border border-border/60 bg-card p-4">
+        <div key={index} className="rounded-lg border border-border-soft bg-card p-4 shadow-subtle">
           <Skeleton className="h-4 w-2/3" />
           <Skeleton className="mt-3 h-3 w-full" />
           <Skeleton className="mt-2 h-3 w-5/6" />

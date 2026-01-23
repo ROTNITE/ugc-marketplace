@@ -5,14 +5,19 @@ import { ru } from "date-fns/locale";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Alert } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ConversationDeleteButton } from "@/components/inbox/conversation-delete-button";
 import { ClearCompletedConversationsButton } from "@/components/inbox/clear-completed-conversations-button";
 import { Container } from "@/components/ui/container";
-import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
+import { DataList, DataListItem } from "@/components/ui/data-list";
+import {
+  PageToolbar,
+  PageToolbarActions,
+  PageToolbarDescription,
+  PageToolbarTitle,
+} from "@/components/ui/page-toolbar";
 import { buildUpdatedAtCursorWhere, decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
@@ -151,16 +156,20 @@ export default async function InboxPage({
 
   return (
     <Container className="py-10 space-y-6" motion>
-      <PageHeader
-        title="Сообщения"
-        description="Все диалоги и переписки по заказам."
-        eyebrow={
-          <Link className="hover:text-foreground" href="/dashboard">
-            В кабинет
-          </Link>
-        }
-        actions={hasClearable ? <ClearCompletedConversationsButton /> : null}
-      />
+      <div className="space-y-2">
+        <Link className="hover:text-foreground" href="/dashboard">
+          В кабинет
+        </Link>
+        <PageToolbar className="border-0 pb-0">
+          <div className="space-y-1">
+            <PageToolbarTitle>Сообщения</PageToolbarTitle>
+            <PageToolbarDescription>Все диалоги и переписки по заказам.</PageToolbarDescription>
+          </div>
+          <PageToolbarActions>
+            {hasClearable ? <ClearCompletedConversationsButton /> : null}
+          </PageToolbarActions>
+        </PageToolbar>
+      </div>
 
       {conversations.length === 0 ? (
         <EmptyState
@@ -180,7 +189,7 @@ export default async function InboxPage({
         />
       ) : (
         <>
-          <div className="grid gap-4">
+          <DataList className="space-y-4">
             {conversations.map((conversation) => {
               const counterparty = conversation.participants.find((p) => p.userId !== user.id)?.user;
               const lastMessage = conversation.messages[0];
@@ -191,12 +200,14 @@ export default async function InboxPage({
               const isUnread = unreadCount > 0;
 
               return (
-                <Card key={conversation.id} className={isUnread ? "border-primary/50 bg-primary/5" : undefined}>
-                  <CardHeader>
+                <DataListItem key={conversation.id} className={isUnread ? "border-primary/50 bg-primary/5" : undefined}>
+                  <div>
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <CardTitle>{getDisplayName(counterparty)}</CardTitle>
-                        <CardDescription>
+                        <h3 className="text-ui-base font-ui-semibold leading-tight tracking-tight">
+                          {getDisplayName(counterparty)}
+                        </h3>
+                        <p className="text-ui-sm text-muted-foreground leading-relaxed">
                           {conversation.job ? (
                             <>
                               Заказ:{" "}
@@ -207,7 +218,7 @@ export default async function InboxPage({
                           ) : (
                             "Без привязки к заказу"
                           )}
-                        </CardDescription>
+                        </p>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         {unreadCount > 0 ? (
@@ -221,8 +232,8 @@ export default async function InboxPage({
                         ) : null}
                       </div>
                     </div>
-                  </CardHeader>
-                  <CardContent className="flex items-center justify-between gap-3 text-sm">
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3 text-sm">
                     <div className="text-muted-foreground flex-1">
                       {lastMessage ? lastMessage.body : "Нет сообщений."}
                     </div>
@@ -231,11 +242,11 @@ export default async function InboxPage({
                         Открыть
                       </Button>
                     </Link>
-                  </CardContent>
-                </Card>
+                  </div>
+                </DataListItem>
               );
             })}
-          </div>
+          </DataList>
           {nextCursor ? (
             <div>
               <Link href={`/dashboard/inbox?${nextParams.toString()}`}>

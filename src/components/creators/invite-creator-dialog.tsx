@@ -6,6 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 
 type JobOption = { id: string; title: string };
 
@@ -94,58 +103,70 @@ export function InviteCreatorDialog({
         </Button>
       </div>
 
-      {isOpen ? (
-        <div className="space-y-3">
-          {error ? (
-            <Alert variant="warning" title="Ошибка">
-              <div className="space-y-2">
-                <p>{error}</p>
-                {profileCta ? (
-                  <a className="text-primary hover:underline text-sm" href={profileCta}>
-                    Перейти в профиль
-                  </a>
-                ) : null}
-              </div>
-            </Alert>
-          ) : null}
-          {success ? (
-            <Alert variant="success" title="Готово">
-              <div className="space-y-2">
-                <p>{success}</p>
-                {conversationId ? (
-                  <a className="text-primary hover:underline text-sm" href={`/dashboard/inbox/${conversationId}`}>
-                    Открыть чат
-                  </a>
-                ) : null}
-              </div>
-            </Alert>
-          ) : null}
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Пригласить в заказ</DialogTitle>
+            <DialogDescription>Выберите опубликованный заказ и добавьте сообщение.</DialogDescription>
+          </DialogHeader>
 
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Заказ</label>
-            <Select value={jobId} onChange={(e) => setJobId(e.target.value)}>
-              {jobs.map((job) => (
-                <option key={job.id} value={job.id}>
-                  {job.title}
-                </option>
-              ))}
-            </Select>
+          <div className="space-y-3">
+            {error ? (
+              <Alert variant="warning" title="Ошибка">
+                <div className="space-y-2">
+                  <p>{error}</p>
+                  {profileCta ? (
+                    <a className="text-primary hover:underline text-sm" href={profileCta}>
+                      Перейти в профиль
+                    </a>
+                  ) : null}
+                </div>
+              </Alert>
+            ) : null}
+            {success ? (
+              <Alert variant="success" title="Готово">
+                <div className="space-y-2">
+                  <p>{success}</p>
+                  {conversationId ? (
+                    <a className="text-primary hover:underline text-sm" href={`/dashboard/inbox/${conversationId}`}>
+                      Открыть чат
+                    </a>
+                  ) : null}
+                </div>
+              </Alert>
+            ) : null}
+
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Заказ</label>
+              <Select value={jobId} onChange={(e) => setJobId(e.target.value)}>
+                {jobs.map((job) => (
+                  <option key={job.id} value={job.id}>
+                    {job.title}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Сообщение (опционально)</label>
+              <Textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Пара слов о том, что нужно сделать"
+              />
+            </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-xs text-muted-foreground">Сообщение (опционально)</label>
-            <Textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Пара слов о том, что нужно сделать"
-            />
-          </div>
-
-          <Button onClick={send} disabled={isLoading}>
-            {isLoading ? "Отправка..." : "Отправить приглашение"}
-          </Button>
-        </div>
-      ) : null}
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Отмена</Button>
+            </DialogClose>
+            <Button onClick={send} disabled={isLoading}>
+              {isLoading ? "Отправка..." : "Отправить приглашение"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -584,11 +584,39 @@ async function run() {
     if (!e2eJob) {
       throw new Error(`Seed job not found: ${E2E_JOB_TITLE}`);
     }
+    const artifacts = await prisma.$transaction([
+      prisma.application.count({ where: { jobId: e2eJob.id } }),
+      prisma.submission.count({ where: { jobId: e2eJob.id } }),
+      prisma.conversation.count({ where: { jobId: e2eJob.id } }),
+      prisma.escrow.count({ where: { jobId: e2eJob.id } }),
+    ]);
+    const hasArtifacts = artifacts.some((count) => count > 0);
+
     if (e2eJob.status !== "PUBLISHED" || e2eJob.moderationStatus !== "APPROVED") {
-      throw new Error(
-        "Seed job должен быть PUBLISHED/APPROVED. Запустите npm run db:reset (или db:seed) после фикса seed.",
-      );
+      if (!hasArtifacts) {
+        throw new Error(
+          "Seed job должен быть PUBLISHED/APPROVED. Запустите npm run db:reset (или db:seed) после фикса seed.",
+        );
+      }
+      await prisma.job.update({
+        where: { id: e2eJob.id },
+        data: {
+          status: "PUBLISHED",
+          moderationStatus: "APPROVED",
+          activeCreatorId: null,
+          moderatedAt: new Date(),
+        },
+      });
     }
+
+    // Cleanup only smoke artifacts for E2E job.
+    await prisma.submissionItem.deleteMany({ where: { submission: { jobId: e2eJob.id } } });
+    await prisma.submission.deleteMany({ where: { jobId: e2eJob.id } });
+    await prisma.application.deleteMany({ where: { jobId: e2eJob.id } });
+    await prisma.invitation.deleteMany({ where: { jobId: e2eJob.id } });
+    await prisma.message.deleteMany({ where: { conversation: { jobId: e2eJob.id } } });
+    await prisma.conversationParticipant.deleteMany({ where: { conversation: { jobId: e2eJob.id } } });
+    await prisma.conversation.deleteMany({ where: { jobId: e2eJob.id } });
     await prisma.escrow.deleteMany({ where: { jobId: e2eJob.id } });
 
     const foreignJob = await prisma.job.findFirst({

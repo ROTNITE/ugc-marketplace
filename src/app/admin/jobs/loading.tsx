@@ -1,19 +1,51 @@
 import { Container } from "@/components/ui/container";
-import { ListSkeleton, Skeleton } from "@/components/ui/skeleton";
+import { DataList, DataListItem } from "@/components/ui/data-list";
+import { PageToolbar, PageToolbarDescription, PageToolbarTitle } from "@/components/ui/page-toolbar";
+import { Skeleton } from "@/components/ui/skeleton";
 
-export default function Loading() {
+export default function AdminJobsLoading() {
   return (
     <Container className="py-10 space-y-6">
-      <div className="space-y-2">
-        <Skeleton className="h-7 w-44" />
-        <Skeleton className="h-4 w-72" />
+      <PageToolbar className="border-0 pb-0">
+        <div className="space-y-1">
+          <PageToolbarTitle>Модерация заказов</PageToolbarTitle>
+          <PageToolbarDescription>Проверяйте публикации перед выдачей в ленту.</PageToolbarDescription>
+        </div>
+      </PageToolbar>
+
+      <div className="rounded-lg border border-border-soft bg-card p-4 space-y-3">
+        <div>
+          <div className="text-base font-semibold">Фильтры</div>
+          <p className="text-sm text-muted-foreground">Статус модерации</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <Skeleton key={index} className="h-8 w-24 rounded-md" />
+          ))}
+        </div>
       </div>
-      <div className="flex flex-wrap gap-2">
-        <Skeleton className="h-8 w-24" />
-        <Skeleton className="h-8 w-24" />
-        <Skeleton className="h-8 w-24" />
-      </div>
-      <ListSkeleton rows={6} />
+
+      <DataList className="space-y-4">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <DataListItem key={index} className="space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-56" />
+                <Skeleton className="h-3 w-40" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-6 w-20 rounded-full" />
+                <Skeleton className="h-6 w-24 rounded-full" />
+              </div>
+            </div>
+            <div className="space-y-3">
+              <Skeleton className="h-3 w-64" />
+              <Skeleton className="h-3 w-72" />
+            </div>
+            <Skeleton className="h-9 w-40" />
+          </DataListItem>
+        ))}
+      </DataList>
     </Container>
   );
 }

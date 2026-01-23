@@ -1,9 +1,13 @@
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
+import { LandingShell } from "@/components/landing/shell";
 import { LandingHero } from "@/components/landing/hero";
+import { LandingPreview } from "@/components/landing/preview";
+import { LandingTrust } from "@/components/landing/trust";
 import { LandingHowItWorks } from "@/components/landing/how-it-works";
 import { LandingFeatures } from "@/components/landing/features";
 import { LandingSafety } from "@/components/landing/safety";
+import { LandingTestimonials } from "@/components/landing/testimonials";
 import { LandingCta } from "@/components/landing/cta";
 import { CreatorHome } from "@/components/home/creator-home";
 import { BrandHome } from "@/components/home/brand-home";
@@ -17,13 +21,16 @@ export default async function HomePage() {
 
   if (!user) {
     return (
-      <div className="bg-background text-foreground">
+      <LandingShell>
         <LandingHero />
-        <LandingHowItWorks />
+        <LandingPreview />
+        <LandingTrust />
         <LandingFeatures />
+        <LandingHowItWorks />
         <LandingSafety />
+        <LandingTestimonials />
         <LandingCta />
-      </div>
+      </LandingShell>
     );
   }
 

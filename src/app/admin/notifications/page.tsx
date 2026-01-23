@@ -6,13 +6,19 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MarkAllReadButton } from "@/components/notifications/mark-all-read-button";
 import { ClearAllNotificationsButton } from "@/components/notifications/clear-all-button";
 import { MarkReadButton } from "@/components/notifications/mark-read-button";
 import { Container } from "@/components/ui/container";
+import { DataList, DataListItem } from "@/components/ui/data-list";
+import {
+  PageToolbar,
+  PageToolbarActions,
+  PageToolbarDescription,
+  PageToolbarTitle,
+} from "@/components/ui/page-toolbar";
 import { buildCreatedAtCursorWhere, decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
@@ -159,26 +165,28 @@ export default async function AdminNotificationsPage({
 
   return (
     <Container size="lg" className="py-10 space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link className="text-sm text-muted-foreground hover:text-foreground" href="/admin">
-            В админку
-          </Link>
-          <h1 className="text-2xl font-semibold tracking-tight">Уведомления</h1>
-          <p className="text-sm text-muted-foreground">Последние 200 событий в системе.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <MarkAllReadButton />
-          <ClearAllNotificationsButton />
-        </div>
+      <div className="space-y-2">
+        <Link className="text-sm text-muted-foreground hover:text-foreground" href="/admin">
+          В админку
+        </Link>
+        <PageToolbar className="border-0 pb-0">
+          <div className="space-y-1">
+            <PageToolbarTitle>Уведомления</PageToolbarTitle>
+            <PageToolbarDescription>Последние 200 событий в системе.</PageToolbarDescription>
+          </div>
+          <PageToolbarActions>
+            <MarkAllReadButton />
+            <ClearAllNotificationsButton />
+          </PageToolbarActions>
+        </PageToolbar>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Фильтры</CardTitle>
-          <CardDescription>Переключайтесь между категориями.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
+      <div className="rounded-lg border border-border-soft bg-card p-4 space-y-3">
+        <div>
+          <div className="text-base font-semibold">Фильтры</div>
+          <p className="text-sm text-muted-foreground">Переключайтесь между категориями.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
           {Object.entries(FILTER_LABELS).map(([key, label]) => (
             <Link
               key={key}
@@ -192,25 +200,25 @@ export default async function AdminNotificationsPage({
               {label} ({counts[key as FilterKey]})
             </Link>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {filteredNotifications.length === 0 ? (
         <EmptyState title="Пока пусто" description="Уведомлений нет." />
       ) : (
         <>
-          <div className="grid gap-3">
+          <DataList className="space-y-3">
             {filteredNotifications.map((item) => {
               const category = getCategory(item.type);
               return (
-                <Card key={item.id} className={item.isRead ? "opacity-80" : "border-primary/50"}>
-                  <CardHeader className="flex flex-row items-start justify-between gap-3">
+                <DataListItem key={item.id} className={item.isRead ? "opacity-80" : "border-primary/50"}>
+                  <div className="flex flex-row items-start justify-between gap-3">
                     <div className="space-y-1">
-                      <CardTitle className="text-base">
+                      <div className="text-base font-semibold">
                         <Link className="hover:underline" href={`/api/notifications/${item.id}/open`}>
                           {item.title}
                         </Link>
-                      </CardTitle>
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         {formatDistanceToNow(item.createdAt, { addSuffix: true, locale: ru })}
                       </p>
@@ -219,8 +227,8 @@ export default async function AdminNotificationsPage({
                       <Badge variant="soft">{category.toUpperCase()}</Badge>
                       <Badge variant="soft">{item.type}</Badge>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm text-muted-foreground">
+                  </div>
+                  <div className="space-y-2 text-sm text-muted-foreground">
                     {item.body ? <p className="whitespace-pre-wrap">{item.body}</p> : null}
                     <div className="flex flex-wrap items-center gap-3">
                       <Link className="text-primary hover:underline" href={`/api/notifications/${item.id}/open`}>
@@ -228,11 +236,11 @@ export default async function AdminNotificationsPage({
                       </Link>
                       {!item.isRead ? <MarkReadButton notificationId={item.id} /> : null}
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </DataListItem>
               );
             })}
-          </div>
+          </DataList>
           {nextCursor ? (
             <div>
               <Link href={`${basePath}?${nextParams.toString()}`}>

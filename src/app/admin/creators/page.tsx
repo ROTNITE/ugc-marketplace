@@ -6,13 +6,13 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CreatorVerificationActions } from "@/components/admin/creator-verification-actions";
 import { getVerificationStatusBadge } from "@/lib/status-badges";
 import { Container } from "@/components/ui/container";
 import { PageHeader } from "@/components/ui/page-header";
+import { DataList, DataListItem } from "@/components/ui/data-list";
 import { buildUpdatedAtCursorWhere, decodeCursor, parseCursor, parseLimit, sliceWithNextCursor } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
@@ -113,12 +113,12 @@ export default async function AdminCreatorsPage({
         }
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Фильтры</CardTitle>
-          <CardDescription>Статус верификации</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
+      <div className="rounded-lg border border-border-soft bg-card p-4 space-y-3">
+        <div>
+          <div className="text-base font-semibold">Фильтры</div>
+          <p className="text-sm text-muted-foreground">Статус верификации</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
           {FILTERS.map((item) => {
             const statusBadge = getVerificationStatusBadge(item);
             return (
@@ -133,14 +133,14 @@ export default async function AdminCreatorsPage({
               </Link>
             );
           })}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {creators.length === 0 ? (
         <EmptyState title="Нет профилей" description="Пока нет профилей в этом статусе." />
       ) : (
         <>
-          <div className="grid gap-4">
+          <DataList className="space-y-4">
             {creators.map((creator) => {
               const name = creator.user?.name || creator.user?.email || "Креатор";
               const platforms = creator.platforms?.length ? creator.platforms.join(", ") : "-";
@@ -148,19 +148,17 @@ export default async function AdminCreatorsPage({
               const statusBadge = getVerificationStatusBadge(creator.verificationStatus);
 
               return (
-                <Card key={creator.id}>
-                  <CardHeader>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <CardTitle>{name}</CardTitle>
-                        <CardDescription>{creator.user?.email}</CardDescription>
-                      </div>
-                      <Badge variant={statusBadge.variant} tone={statusBadge.tone}>
-                        {statusBadge.label}
-                      </Badge>
+                <DataListItem key={creator.id} className="space-y-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-ui-base font-ui-semibold">{name}</div>
+                      <div className="text-ui-xs text-muted-foreground">{creator.user?.email}</div>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm">
+                    <Badge variant={statusBadge.variant} tone={statusBadge.tone}>
+                      {statusBadge.label}
+                    </Badge>
+                  </div>
+                  <div className="space-y-3 text-sm">
                     {creator.verificationReviewedAt ? (
                       <div className="text-muted-foreground text-xs">
                         Рассмотрено: {new Date(creator.verificationReviewedAt).toLocaleString()}
@@ -198,11 +196,11 @@ export default async function AdminCreatorsPage({
                     {creator.verificationStatus === "PENDING" ? (
                       <CreatorVerificationActions creatorProfileId={creator.id} />
                     ) : null}
-                  </CardContent>
-                </Card>
+                  </div>
+                </DataListItem>
               );
             })}
-          </div>
+          </DataList>
           {nextCursor ? (
             <div>
               <Link href={`/admin/creators?${nextParams.toString()}`}>
