@@ -1,6 +1,33 @@
 import fs from "node:fs";
 import path from "node:path";
 
+function loadEnvFromFile() {
+  const envPath = path.join(process.cwd(), ".env");
+  if (!fs.existsSync(envPath)) return;
+  try {
+    const raw = fs.readFileSync(envPath, "utf-8");
+    for (const line of raw.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const normalized = trimmed.startsWith("export ") ? trimmed.slice(7) : trimmed;
+      const eqIndex = normalized.indexOf("=");
+      if (eqIndex === -1) continue;
+      const key = normalized.slice(0, eqIndex).trim();
+      let value = normalized.slice(eqIndex + 1).trim();
+      if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      if (process.env[key] === undefined) {
+        process.env[key] = value;
+      }
+    }
+  } catch {
+    // ignore env load errors
+  }
+}
+
+loadEnvFromFile();
+
 type OutboxEvent = {
   id: string;
   type: string;
@@ -42,9 +69,12 @@ const dedupeTtlMs = Math.max(Number(process.env.OUTBOX_DEDUPE_TTL ?? "300000"), 
 const cursorPath =
   getArgValue("cursor-file") ?? process.env.OUTBOX_CURSOR_FILE ?? path.join(process.cwd(), ".outbox-cursor.json");
 const dedupeMap = new Map<string, number>();
+const healthFilePath = getArgValue("health-file") ?? process.env.OUTBOX_HEALTH_FILE ?? null;
+const printHealth = hasFlag("print-health");
+const REQUEST_ID_HEADER = "x-request-id";
 
 if (!secret) {
-  console.error("OUTBOX_CONSUMER_SECRET не задан. Добавьте его в .env.");
+  logLine("error", "worker", { msg: "OUTBOX_CONSUMER_SECRET не задан. Добавьте его в .env." });
   process.exit(1);
 }
 
@@ -63,8 +93,50 @@ function saveCursor(cursor: string | null) {
   fs.writeFileSync(cursorPath, JSON.stringify({ cursor }, null, 2), "utf-8");
 }
 
+type HealthSnapshot = {
+  ts: string;
+  scope: string;
+  mode: string;
+  lastSuccessAt: string | null;
+  lastErrorAt: string | null;
+  processed: number;
+  sent: number;
+  skipped: number;
+  acked: number;
+  errors: number;
+};
+
+const health: HealthSnapshot = {
+  ts: new Date().toISOString(),
+  scope: "outbox",
+  mode: once || !watch ? "once" : "watch",
+  lastSuccessAt: null,
+  lastErrorAt: null,
+  processed: 0,
+  sent: 0,
+  skipped: 0,
+  acked: 0,
+  errors: 0,
+};
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function ensureServerAvailable() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  try {
+    const res = await fetch(new URL("/api/health", baseUrl), { signal: controller.signal });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+  } catch {
+    logLine("error", "worker", { msg: "Сервер недоступен. Запустите \"npm run dev\".", baseUrl });
+    process.exit(1);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function pruneDedupe(now: number) {
@@ -109,22 +181,35 @@ async function fetchWithRetry(
   throw new Error(`${label} failed: ${String(lastError ?? "unknown error")}`);
 }
 
-function logEvent({
-  requestId,
-  eventId,
-  type,
-  attempt,
-  durationMs,
-}: {
-  requestId: string;
-  eventId: string;
-  type: string;
-  attempt: number;
-  durationMs: number;
-}) {
-  console.log(
-    `[outbox] requestId=${requestId} eventId=${eventId} type=${type} attempt=${attempt} durationMs=${durationMs}`,
-  );
+function logLine(
+  level: "info" | "warn" | "error",
+  scope: string,
+  fields: Record<string, string | number | boolean | null | undefined>,
+) {
+  const payload = {
+    ts: new Date().toISOString(),
+    level,
+    scope,
+    ...fields,
+  };
+  const line = JSON.stringify(payload);
+  if (level === "error") {
+    console.error(line);
+  } else if (level === "warn") {
+    console.warn(line);
+  } else {
+    console.log(line);
+  }
+}
+
+function updateHealth(partial?: Partial<HealthSnapshot>) {
+  if (!healthFilePath) return;
+  const now = new Date().toISOString();
+  health.ts = now;
+  if (partial) {
+    Object.assign(health, partial);
+  }
+  fs.writeFileSync(healthFilePath, JSON.stringify(health, null, 2), "utf-8");
 }
 
 async function pullOnce() {
@@ -133,6 +218,7 @@ async function pullOnce() {
   url.searchParams.set("limit", String(maxBatch));
   if (cursor) url.searchParams.set("cursor", cursor);
 
+  const pullStartedAt = Date.now();
   const res = await fetchWithRetry(
     url,
     {
@@ -140,6 +226,13 @@ async function pullOnce() {
     },
     { label: "outbox pull" },
   );
+  const pullRequestId = res.headers.get(REQUEST_ID_HEADER) ?? "n/a";
+  logLine("info", "http", {
+    msg: "outbox.pull",
+    requestId: pullRequestId,
+    status: res.status,
+    durationMs: Date.now() - pullStartedAt,
+  });
 
   if (!res.ok) {
     const text = await res.text();
@@ -153,7 +246,7 @@ async function pullOnce() {
   }
 
   const data = payload.data;
-  const requestId = payload.requestId;
+  const requestId = payload.requestId ?? pullRequestId;
   if (!Array.isArray(data.events)) {
     throw new Error("pull failed: invalid response shape");
   }
@@ -161,6 +254,7 @@ async function pullOnce() {
   if (data.events.length === 0) {
     const next = data.nextCursor ?? cursor;
     if (next !== cursor) saveCursor(next);
+    updateHealth({ lastSuccessAt: new Date().toISOString() });
     return { processed: 0, total: 0, nextCursor: next };
   }
 
@@ -173,13 +267,17 @@ async function pullOnce() {
     const expiresAt = dedupeMap.get(event.id);
     if (expiresAt && expiresAt > now) {
       ackIds.push(event.id);
+      health.skipped += 1;
       continue;
     }
     const startedAt = Date.now();
     dedupeMap.set(event.id, now + dedupeTtlMs);
     processed += 1;
+    health.processed += 1;
+    health.sent += 1;
     ackIds.push(event.id);
-    logEvent({
+    logLine("info", "outbox", {
+      msg: "event.processed",
       requestId,
       eventId: event.id,
       type: event.type,
@@ -189,6 +287,7 @@ async function pullOnce() {
   }
 
   if (ackIds.length) {
+    const ackStartedAt = Date.now();
     const ackRes = await fetchWithRetry(
       new URL("/api/outbox/ack", baseUrl),
       {
@@ -201,6 +300,15 @@ async function pullOnce() {
       },
       { label: "outbox ack", attempts: Math.min(maxRetries, 5), baseDelayMs: 700, maxDelayMs: 7000 },
     );
+    const ackRequestId = ackRes.headers.get(REQUEST_ID_HEADER) ?? "n/a";
+    logLine("info", "http", {
+      msg: "outbox.ack",
+      requestId: ackRequestId,
+      status: ackRes.status,
+      durationMs: Date.now() - ackStartedAt,
+      count: ackIds.length,
+    });
+    health.acked += ackIds.length;
 
     if (!ackRes.ok) {
       const text = await ackRes.text();
@@ -210,33 +318,56 @@ async function pullOnce() {
 
   const next = data.nextCursor ?? cursor;
   if (next) saveCursor(next);
+  updateHealth({ lastSuccessAt: new Date().toISOString() });
 
   return { processed, total: data.events.length, nextCursor: next };
 }
 
 async function run() {
+  await ensureServerAvailable();
+  if (printHealth) {
+    console.log(JSON.stringify(health));
+    return;
+  }
   if (once || !watch) {
     const result = await pullOnce();
-    console.log(`Done. Processed ${result.processed}/${result.total} event(s).`);
+    logLine("info", "worker", {
+      msg: "done",
+      processed: result.processed,
+      total: result.total,
+    });
     return;
   }
 
-  console.log(`Watching outbox at ${baseUrl} (interval ${intervalMs}ms, maxBatch ${maxBatch})...`);
+  logLine("info", "worker", {
+    msg: "watch",
+    baseUrl,
+    intervalMs,
+    maxBatch,
+  });
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       const result = await pullOnce();
       if (result.processed > 0) {
-        console.log(`Processed ${result.processed}/${result.total} event(s).`);
+        logLine("info", "worker", {
+          msg: "processed",
+          processed: result.processed,
+          total: result.total,
+        });
       }
     } catch (error) {
-      console.error(error);
+      health.errors += 1;
+      updateHealth({ lastErrorAt: new Date().toISOString() });
+      logLine("error", "worker", { msg: "error", error: String(error) });
     }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 }
 
 run().catch((error) => {
-  console.error(error);
+  health.errors += 1;
+  updateHealth({ lastErrorAt: new Date().toISOString() });
+  logLine("error", "worker", { msg: "fatal", error: String(error) });
   process.exit(1);
 });

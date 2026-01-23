@@ -5,20 +5,36 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { prisma } from "@/lib/prisma";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { isDbUnavailableError, shouldDegradeDbErrors } from "@/lib/db-errors";
+import { log } from "@/lib/logger";
 
 export async function SiteHeader() {
   const session = await getServerSession(authOptions);
   const user = session?.user;
-  const [unreadCount, unreadByType] = user
-    ? await Promise.all([
+  let unreadCount = 0;
+  let unreadByType: Array<{ type: string; _count: { _all: number } }> = [];
+  let dbDegraded = false;
+  if (user) {
+    try {
+      [unreadCount, unreadByType] = await Promise.all([
         prisma.notification.count({ where: { userId: user.id, isRead: false } }),
         prisma.notification.groupBy({
           by: ["type"],
           where: { userId: user.id, isRead: false },
           _count: { _all: true },
         }),
-      ])
-    : [0, []];
+      ]);
+    } catch (error) {
+      if (shouldDegradeDbErrors() && isDbUnavailableError(error)) {
+        log("warn", "db", { message: "site-header unread counts fallback", error: String(error) });
+        unreadCount = 0;
+        unreadByType = [];
+        dbDegraded = true;
+      } else {
+        throw error;
+      }
+    }
+  }
 
   const unreadMap = new Map(unreadByType.map((item) => [item.type, item._count._all]));
   const inboxUnread = unreadMap.get("MESSAGE_SENT") ?? 0;
@@ -49,7 +65,10 @@ export async function SiteHeader() {
             { label: "Профиль", href: "/dashboard/profile" },
           ]
         : user?.role === "ADMIN"
-          ? [{ label: "Админка", href: "/admin" }]
+          ? [
+              { label: "Админка", href: "/admin" },
+              { label: "Уведомления", href: "/admin/notifications" },
+            ]
           : [
               { label: "Заказы", href: "/jobs" },
               { label: "Креаторы", href: "/creators" },
@@ -188,6 +207,11 @@ export async function SiteHeader() {
           </details>
         </div>
       </div>
+      {process.env.NODE_ENV === "development" && dbDegraded && (
+        <div className="mx-auto max-w-6xl px-4 pb-2 text-xs text-muted-foreground">
+          Если база недоступна, показываются значения по умолчанию.
+        </div>
+      )}
     </header>
   );
 }

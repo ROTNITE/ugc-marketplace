@@ -9,4 +9,7 @@ out
 prisma/dev.db
 .outbox-cursor.json
 .tg-offset.json
+.worker-health.json
+.tg-health.json
+.outbox-health.json
 tsconfig.tsbuildinfo

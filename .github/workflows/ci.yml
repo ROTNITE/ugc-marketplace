@@ -54,13 +54,16 @@ jobs:
       - name: Seed database
         run: npm run db:seed
 
-      - name: Start dev server
-        run: npm run dev -- --hostname 127.0.0.1 --port 3000 > .next-ci.log 2>&1 &
+      - name: Build app
+        run: npm run build
+
+      - name: Start server
+        run: PORT=3000 NODE_ENV=production npm run start > .next-ci.log 2>&1 &
 
       - name: Wait for server
         shell: bash
         run: |
-          for i in {1..30}; do
+          for i in {1..60}; do
             if curl -fsS http://localhost:3000/api/health > /dev/null; then
               echo "Server ready"
               exit 0
@@ -73,3 +76,7 @@ jobs:
 
       - name: Smoke
         run: npm run smoke
+
+      - name: Tail server log on failure
+        if: failure()
+        run: tail -n 200 .next-ci.log || true

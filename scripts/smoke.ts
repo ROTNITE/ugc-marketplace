@@ -97,6 +97,21 @@ async function expectStatus(
   }
 }
 
+async function expectValidationError(url: string, options: RequestInit, jar: CookieJar) {
+  const response = await fetchWithCookies(url, options, jar);
+  const text = await response.text().catch(() => "");
+  let code = "UNKNOWN";
+  try {
+    const payload = JSON.parse(text) as { error?: { code?: string } };
+    code = payload.error?.code ?? code;
+  } catch {
+    // ignore parse errors
+  }
+  if (response.status !== 400 || code !== "VALIDATION_ERROR") {
+    throw new Error(`Expected VALIDATION_ERROR 400, got ${response.status} code=${code}: ${text}`);
+  }
+}
+
 async function fetchJson<T>(url: string, options: RequestInit, jar?: CookieJar): Promise<T> {
   const response = jar ? await fetchWithCookies(url, options, jar) : await fetch(url, options);
   const text = await response.text();
@@ -116,7 +131,9 @@ async function fetchJson<T>(url: string, options: RequestInit, jar?: CookieJar):
     if (!maybeContract.ok) {
       const code = maybeContract.error?.code ?? "ERROR";
       const message = maybeContract.error?.message ?? text;
-      throw new Error(`API ${code} @ ${url}: ${message} (requestId=${requestId ?? "n/a"})`);
+      throw new Error(
+        `API ${code} @ ${url}: ${message} (status=${response.status}) (requestId=${requestId ?? "n/a"})`,
+      );
     }
     return (maybeContract.data ?? ({} as T)) as T;
   }
@@ -149,19 +166,56 @@ const E2E_JOB_TITLE = "[E2E] Job for full flow";
 const FOREIGN_JOB_TITLE = "[E2E] Foreign job for negative checks";
 
 async function ensureServerAvailable(baseUrl: string) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 4000);
-  try {
-    const res = await fetch(`${baseUrl}/api/health`, { signal: controller.signal });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
+  const attempts = 10;
+  const delays = [500, 1000, 1500];
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    try {
+      const res = await fetch(`${baseUrl}/api/health`, { signal: controller.signal });
+      if (res.ok) {
+        lastError = null;
+        break;
+      }
+      lastError = new Error(`HTTP ${res.status}`);
+    } catch (error) {
+      lastError = error;
+    } finally {
+      clearTimeout(timeout);
     }
-  } catch {
+    const delay = delays[Math.min(attempt, delays.length - 1)];
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+
+  if (lastError) {
     throw new Error(
-      `Сервер недоступен по адресу ${baseUrl}. Запустите \"npm run dev\" перед \"npm run smoke\".`,
+      `Сервер недоступен по адресу ${baseUrl}. Запустите \"npm run dev\" перед \"npm run smoke\". ` +
+        "Если dev запущен — подождите 5–10с: сервер может компилироваться.",
     );
+  }
+
+  const dbController = new AbortController();
+  const dbTimeout = setTimeout(() => dbController.abort(), 4000);
+  try {
+    const res = await fetch(`${baseUrl}/api/jobs?limit=1`, { signal: dbController.signal });
+    if (res.status === 500) {
+      const text = await res.text().catch(() => "");
+      const lower = text.toLowerCase();
+      if (
+        lower.includes("can't reach database server") ||
+        lower.includes("prismaclientinitializationerror") ||
+        lower.includes("connection refused") ||
+        lower.includes("econnrefused")
+      ) {
+        throw new Error(
+          "DB недоступна. Запустите Docker/Postgres: npm run db:up затем npm run db:deploy && npm run db:seed",
+        );
+      }
+    }
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(dbTimeout);
   }
 }
 
@@ -226,6 +280,46 @@ async function ensureConversation(prisma: PrismaClient, brandId: string, creator
   });
 }
 
+async function ensureInvitationJob(prisma: PrismaClient, brandId: string) {
+  const existing = await prisma.job.findFirst({
+    where: { brandId, status: "PUBLISHED", moderationStatus: "APPROVED" },
+    select: { id: true, title: true },
+  });
+  if (existing) return existing;
+
+  return prisma.job.create({
+    data: {
+      brandId,
+      title: "Smoke invitation job",
+      description: "Smoke job for invitation flow",
+      platform: "TIKTOK",
+      niche: "FOOD",
+      deliverablesCount: 1,
+      videoDurationSec: 15,
+      contentFormats: ["REVIEW"],
+      needsPosting: false,
+      needsWhitelisting: false,
+      rightsPackage: "BASIC",
+      usageTermDays: 30,
+      revisionRounds: 1,
+      revisionRoundsIncluded: 1,
+      languages: ["ru"],
+      shippingRequired: false,
+      deliverablesIncludeRaw: false,
+      deliverablesIncludeProjectFile: false,
+      subtitlesRequired: false,
+      scriptProvided: false,
+      notes: null,
+      budgetMin: 1000,
+      budgetMax: 1500,
+      currency: "RUB",
+      deadlineType: "DAYS_3_5",
+      status: "PUBLISHED",
+      moderationStatus: "APPROVED",
+    },
+    select: { id: true, title: true },
+  });
+}
 async function ensureEscrowJob(prisma: PrismaClient, brandId: string, creatorId: string) {
   const existing = await prisma.job.findFirst({
     where: {
@@ -491,8 +585,11 @@ async function run() {
       throw new Error(`Seed job not found: ${E2E_JOB_TITLE}`);
     }
     if (e2eJob.status !== "PUBLISHED" || e2eJob.moderationStatus !== "APPROVED") {
-      throw new Error("Seed job is not in PUBLISHED/APPROVED state.");
+      throw new Error(
+        "Seed job должен быть PUBLISHED/APPROVED. Запустите npm run db:reset (или db:seed) после фикса seed.",
+      );
     }
+    await prisma.escrow.deleteMany({ where: { jobId: e2eJob.id } });
 
     const foreignJob = await prisma.job.findFirst({
       where: { brandId: brandB.id, title: FOREIGN_JOB_TITLE },
@@ -505,6 +602,20 @@ async function run() {
     await prisma.application.deleteMany({
       where: { jobId: e2eJob.id, creatorId: creator.id },
     });
+
+    logStep("validation: apply requires тело");
+    await expectValidationError(
+      `${baseUrl}/api/jobs/${e2eJob.id}/apply`,
+      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({}) },
+      creatorJar,
+    );
+
+    logStep("validation: invite requires тело");
+    await expectValidationError(
+      `${baseUrl}/api/invitations`,
+      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({}) },
+      brandJar,
+    );
 
     logStep("creator apply (E2E job)");
     const application = await fetchJson<{ application: { id: string } }>(
@@ -554,6 +665,38 @@ async function run() {
       throw new Error("Escrow not created or not UNFUNDED after accept.");
     }
 
+    logStep("invite creator + notifications");
+    const inviteJob = await ensureInvitationJob(prisma, brand.id);
+    await prisma.creatorProfile.updateMany({
+      where: { userId: creator.id },
+      data: { isPublic: true, verificationStatus: "VERIFIED" },
+    });
+    const inviteNotificationsBefore = await prisma.notification.count({
+      where: { userId: creator.id, type: "INVITATION_SENT" },
+    });
+    await fetchJson(
+      `${baseUrl}/api/invitations`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jobId: inviteJob.id, creatorId: creator.id, message: "Smoke invite" }),
+      },
+      brandJar,
+    );
+    const inviteRecord = await prisma.invitation.findUnique({
+      where: { jobId_creatorId: { jobId: inviteJob.id, creatorId: creator.id } },
+      select: { status: true },
+    });
+    if (!inviteRecord || inviteRecord.status !== "SENT") {
+      throw new Error("Invitation was not создан/обновлен в статусе SENT.");
+    }
+    const inviteNotificationsAfter = await prisma.notification.count({
+      where: { userId: creator.id, type: "INVITATION_SENT" },
+    });
+    if (inviteNotificationsAfter <= inviteNotificationsBefore) {
+      throw new Error("INVITATION_SENT notification was not created for creator.");
+    }
+
     logStep("authz: brand cannot cancel чужой заказ");
     await expectForbidden(
       `${baseUrl}/api/jobs/${foreignJob.id}/cancel`,
@@ -585,6 +728,13 @@ async function run() {
       creatorJar,
     );
 
+    logStep("validation: message body required");
+    await expectValidationError(
+      `${baseUrl}/api/conversations/${acceptance.conversationId}/messages`,
+      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ body: "" }) },
+      creatorJar,
+    );
+
     logStep("authz: admin cannot post in чужой чат");
     await expectForbidden(
       `${baseUrl}/api/conversations/${acceptance.conversationId}/messages`,
@@ -607,11 +757,14 @@ async function run() {
       throw new Error("ESCROW_FUND ledger entry duplicated.");
     }
 
-    logStep("escrow fund (idempotent)");
-    await fetchJson(`${baseUrl}/api/escrow/${e2eJob.id}/fund`, { method: "POST" }, brandJar);
+    logStep("escrow fund parallel (idempotent)");
+    await Promise.allSettled([
+      expectStatus(`${baseUrl}/api/escrow/${e2eJob.id}/fund`, { method: "POST" }, brandJar, [200, 409]),
+      expectStatus(`${baseUrl}/api/escrow/${e2eJob.id}/fund`, { method: "POST" }, brandJar, [200, 409]),
+    ]);
     const fundEntriesAfter = await prisma.ledgerEntry.count({ where: { reference: `ESCROW_FUND:${escrow.id}` } });
     if (fundEntriesAfter !== 1) {
-      throw new Error("ESCROW_FUND ledger entry duplicated after retry.");
+      throw new Error("ESCROW_FUND ledger entry duplicated after concurrent calls.");
     }
 
     logStep("creator submit work");
@@ -627,6 +780,10 @@ async function run() {
       },
       creatorJar,
     );
+
+    const creatorCompletedNotificationsBefore = await prisma.notification.count({
+      where: { userId: creator.id, type: "JOB_COMPLETED" },
+    });
 
     const submission = await prisma.submission.findFirst({
       where: { jobId: e2eJob.id },
@@ -664,6 +821,13 @@ async function run() {
       throw new Error("Escrow was not released.");
     }
 
+    const creatorCompletedNotificationsAfter = await prisma.notification.count({
+      where: { userId: creator.id, type: "JOB_COMPLETED" },
+    });
+    if (creatorCompletedNotificationsAfter <= creatorCompletedNotificationsBefore) {
+      throw new Error("JOB_COMPLETED notification was not created for creator.");
+    }
+
     const releaseEntries = await prisma.ledgerEntry.count({ where: { reference: `ESCROW_RELEASE:${escrow.id}` } });
     if (releaseEntries !== 1) {
       throw new Error("ESCROW_RELEASE ledger entry duplicated.");
@@ -696,6 +860,13 @@ async function run() {
         body: JSON.stringify({ amountCents: payoutAmount, payoutMethod: "Smoke payout" }),
       },
       brandJar,
+    );
+
+    logStep("validation: payout request requires тело");
+    await expectValidationError(
+      `${baseUrl}/api/payouts/request`,
+      { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({}) },
+      creatorJar,
     );
 
     logStep("creator payout request");

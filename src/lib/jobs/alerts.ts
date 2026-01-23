@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { log } from "@/lib/logger";
 import { createNotification } from "@/lib/notifications";
 import { emitEvent } from "@/lib/outbox";
 import { Prisma } from "@prisma/client";
@@ -85,6 +86,9 @@ export async function notifyMatchingAlerts(jobId: string) {
       }),
     );
   } catch (error) {
-    console.error(error);
+    log("error", "job-alerts", {
+      message: "failed to create alert",
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }

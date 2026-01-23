@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { isDbUnavailableError, shouldDegradeDbErrors } from "@/lib/db-errors";
+import { log } from "@/lib/logger";
 
 export async function CreatorHome({
   userId,
@@ -11,13 +13,26 @@ export async function CreatorHome({
   creatorProfileId?: string | null;
 }) {
   const creatorIds = [userId, creatorProfileId].filter(Boolean) as string[];
-  const [activeWorkCount, invitationCount, unreadCount] = await Promise.all([
-    prisma.job.count({
-      where: { activeCreatorId: { in: creatorIds }, status: { in: ["PAUSED", "IN_REVIEW"] } },
-    }),
-    prisma.invitation.count({ where: { creatorId: { in: creatorIds }, status: "SENT" } }),
-    prisma.notification.count({ where: { userId, isRead: false } }),
-  ]);
+  let activeWorkCount = 0;
+  let invitationCount = 0;
+  let unreadCount = 0;
+  let dbDegraded = false;
+  try {
+    [activeWorkCount, invitationCount, unreadCount] = await Promise.all([
+      prisma.job.count({
+        where: { activeCreatorId: { in: creatorIds }, status: { in: ["PAUSED", "IN_REVIEW"] } },
+      }),
+      prisma.invitation.count({ where: { creatorId: { in: creatorIds }, status: "SENT" } }),
+      prisma.notification.count({ where: { userId, isRead: false } }),
+    ]);
+  } catch (error) {
+    if (shouldDegradeDbErrors() && isDbUnavailableError(error)) {
+      log("warn", "db", { message: "creator-home counts fallback", error: String(error) });
+      dbDegraded = true;
+    } else {
+      throw error;
+    }
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 space-y-6">
@@ -93,6 +108,11 @@ export async function CreatorHome({
           <div className="text-lg font-semibold">{unreadCount}</div>
         </div>
       </div>
+      {process.env.NODE_ENV === "development" && dbDegraded ? (
+        <p className="text-xs text-muted-foreground">
+          База недоступна, отображаются значения по умолчанию.
+        </p>
+      ) : null}
     </div>
   );
 }

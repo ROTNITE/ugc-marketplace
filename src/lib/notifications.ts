@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { log } from "@/lib/logger";
 
 type NotificationInput = {
   type: string;
@@ -19,7 +20,12 @@ export async function createNotification(userId: string, input: NotificationInpu
       },
     });
   } catch (error) {
-    console.error("[notifications] create failed", { userId, type: input.type, error });
+    log("error", "notifications", {
+      message: "create failed",
+      userId,
+      type: input.type,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -30,6 +36,10 @@ export async function markAllRead(userId: string): Promise<void> {
       data: { isRead: true },
     });
   } catch (error) {
-    console.error("[notifications] markAllRead failed", { userId, error });
+    log("error", "notifications", {
+      message: "markAllRead failed",
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }

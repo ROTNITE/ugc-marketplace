@@ -1,3 +1,5 @@
+import { log } from "@/lib/logger";
+
 export const REQUEST_ID_HEADER = "x-request-id";
 
 function fallbackRequestId() {
@@ -21,5 +23,10 @@ export function logApiError(
   requestId?: string | null,
   meta?: Record<string, unknown>,
 ) {
-  console.error(message, { requestId: requestId ?? "n/a", error, ...meta });
+  log("error", "api", {
+    message,
+    requestId: requestId ?? "n/a",
+    error: error instanceof Error ? error.message : String(error),
+    ...meta,
+  });
 }

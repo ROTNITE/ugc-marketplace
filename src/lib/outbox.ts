@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { log } from "@/lib/logger";
 
 export async function emitEvent(type: string, payload: unknown): Promise<void> {
   try {
@@ -10,6 +11,10 @@ export async function emitEvent(type: string, payload: unknown): Promise<void> {
       },
     });
   } catch (error) {
-    console.error("[outbox] failed to emit event", { type, error });
+    log("error", "outbox", {
+      message: "failed to emit event",
+      type,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }

@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { Currency } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { log } from "@/lib/logger";
 
 const DEFAULT_COMMISSION_BPS = 1500;
 const DEFAULT_CURRENCY: Currency = "RUB";
@@ -25,7 +26,10 @@ export const getPlatformSettings = cache(async () => {
     });
     return settings ?? fallback;
   } catch (error) {
-    console.error("Failed to load PlatformSettings", error);
+    log("error", "platform-settings", {
+      message: "failed to load PlatformSettings",
+      error: error instanceof Error ? error.message : String(error),
+    });
     return fallback;
   }
 });

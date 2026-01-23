@@ -1,4 +1,5 @@
 import { URL } from "node:url";
+import { log } from "@/lib/logger";
 
 const missingDatabaseUrlMessage =
   "DATABASE_URL не задан. Создай .env (см. .env.example) и запусти: npm run db:up";
@@ -7,7 +8,7 @@ export function requireServerEnv() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     if (process.env.NODE_ENV !== "production") {
-      console.error(missingDatabaseUrlMessage);
+      log("error", "env", { message: missingDatabaseUrlMessage });
     }
     throw new Error(missingDatabaseUrlMessage);
   }
