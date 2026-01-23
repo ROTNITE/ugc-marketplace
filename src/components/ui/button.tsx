@@ -3,6 +3,13 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+// Button variants and sizes mirror the original skeleton but have been enhanced
+// with colourful gradients and subtle glow effects. The primary variant now uses
+// a gradient from the primary to the info colour to emphasise the neon
+// aesthetic. Hover states gently increase brightness rather than simply
+// darkening the colour. Secondary and outline variants receive soft surfaces
+// appropriate for a glassmorphic interface.
+
 type Variant = "primary" | "secondary" | "outline" | "ghost" | "destructive";
 type Size = "sm" | "md" | "lg";
 
@@ -12,15 +19,20 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-md font-ui-medium transition-colors duration-normal ease-standard " +
+  "inline-flex items-center justify-center gap-2 rounded-md font-ui-medium transition-all duration-normal ease-standard " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 " +
   "disabled:opacity-50 disabled:pointer-events-none ring-offset-background";
 
+// Updated variant definitions with gradients and glows
 const variants: Record<Variant, string> = {
-  primary: "bg-primary text-primary-foreground shadow-subtle hover:bg-primary/90",
-  secondary: "bg-muted text-foreground shadow-subtle hover:bg-muted/80",
-  outline: "border border-border-soft bg-transparent text-foreground hover:bg-muted/60",
-  ghost: "bg-transparent text-foreground hover:bg-muted/60",
+  primary:
+    "bg-gradient-to-r from-primary to-info text-primary-foreground shadow-glow " +
+    "hover:from-primary/90 hover:to-info/90 hover:shadow-glow",
+  secondary:
+    "bg-surface/80 text-foreground shadow-subtle hover:bg-surface/60", // soft surface with subtle hover
+  outline:
+    "border border-border-soft bg-transparent text-foreground hover:bg-surface/50 hover:shadow-subtle",
+  ghost: "bg-transparent text-foreground hover:bg-surface/40",
   destructive: "bg-danger text-danger-foreground shadow-subtle hover:bg-danger/90",
 };
 

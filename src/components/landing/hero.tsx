@@ -1,15 +1,21 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { MotionDiv, MotionSection } from "@/components/landing/motion";
+import { SearchCombobox } from "@/components/search-combobox";
 
+/**
+ * Hero section for the landing page. This component introduces the platform
+ * and features a search combobox for quickly finding creators, niches and
+ * jobs. It leverages framer motion for subtle animations and uses the
+ * glass+glow aesthetic defined in the global styles.
+ */
 export function LandingHero() {
   const pills = ["UGC-маркетплейс v1", "Для брендов", "Для креаторов", "СНГ"];
   const highlights = [
     {
       title: "Для брендов",
-      text: "Бриф, отклики, чат и сделка — все в одном потоке.",
+      text: "Бриф, отклики, чат и сделка — всё в одном потоке.",
     },
     {
       title: "Для креаторов",
@@ -17,7 +23,7 @@ export function LandingHero() {
     },
     {
       title: "Локальный фокус",
-      text: "СНГ-платформы, рублёвые бюджеты и быстрый цикл сделок.",
+      text: "СНГ‑платформы, рублёвые бюджеты и быстрый цикл сделок.",
     },
   ];
 
@@ -37,7 +43,7 @@ export function LandingHero() {
               ))}
             </div>
             <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-              UGC-маркетплейс для креаторов и брендов (СНГ)
+              UGC‑маркетплейс для креаторов и брендов (СНГ)
             </h1>
             <p className="text-base text-muted-foreground sm:text-lg">
               Находи заказы на короткие видео и получай оплату. Бренды — запускайте пачки UGC
@@ -45,9 +51,9 @@ export function LandingHero() {
             </p>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="flex-1">
-                <Input
+                <SearchCombobox
                   placeholder="Поиск креаторов, ниш, форматов"
-                  className="h-12 rounded-full border border-border/50 bg-surface/40 px-5 text-sm text-foreground placeholder:text-muted-foreground transition duration-normal ease-standard focus-visible:ring-2 focus-visible:ring-ring/40"
+                  className="w-full"
                 />
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">
@@ -101,10 +107,10 @@ export function LandingHero() {
                       <p className="text-sm font-semibold text-foreground">Креатор A</p>
                       <p className="text-xs text-muted-foreground">Бьюти · 48–72 часа</p>
                     </div>
-                    <span className="text-sm font-semibold text-foreground">от 4 900 ₽</span>
+                    <span className="text-sm font-semibold text-foreground">от 4 900 ₽</span>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                    <span className="rounded-full border border-border/40 px-2 py-1">UGC-обзор</span>
+                    <span className="rounded-full border border-border/40 px-2 py-1">UGC‑обзор</span>
                     <span className="rounded-full border border-border/40 px-2 py-1">Сценарий</span>
                     <span className="rounded-full border border-border/40 px-2 py-1">Вертикал</span>
                   </div>
@@ -124,7 +130,7 @@ export function LandingHero() {
                       <p className="text-sm font-semibold text-foreground">Креатор B</p>
                       <p className="text-xs text-muted-foreground">Фитнес · 24–48 часов</p>
                     </div>
-                    <span className="text-sm font-semibold text-foreground">от 3 500 ₽</span>
+                    <span className="text-sm font-semibold text-foreground">от 3 500 ₽</span>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
                     <span className="rounded-full border border-border/40 px-2 py-1">Голос за кадром</span>

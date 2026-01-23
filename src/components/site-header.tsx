@@ -7,7 +7,15 @@ import { prisma } from "@/lib/prisma";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { isDbUnavailableError, shouldDegradeDbErrors } from "@/lib/db-errors";
 import { log } from "@/lib/logger";
+import { NotificationBell } from "@/components/notification-bell";
 
+/**
+ * Server component rendering the top navigation bar. It computes unread
+ * notification counts on the server for nav badges, while delegating
+ * the bell badge to the client via `<NotificationBell>` for real‑time
+ * updates. The design utilises glassmorphic surfaces and neon accents
+ * defined in `globals.css`.
+ */
 export async function SiteHeader() {
   const session = await getServerSession(authOptions);
   const user = session?.user;
@@ -91,7 +99,11 @@ export async function SiteHeader() {
 
           <nav className="hidden md:flex items-center gap-1 text-sm text-muted-foreground">
             {navLinks.map((item) => (
-              <Link key={item.href} className="px-3 py-2 hover:text-foreground flex items-center gap-2" href={item.href}>
+              <Link
+                key={item.href}
+                className="px-3 py-2 hover:text-foreground flex items-center gap-2"
+                href={item.href}
+              >
                 {item.label}
                 {item.badge ? <Badge variant="soft">{item.badge}</Badge> : null}
               </Link>
@@ -103,30 +115,8 @@ export async function SiteHeader() {
           <ThemeToggle className="hidden md:inline-flex" />
           {user ? (
             <>
-              <Link
-                href={notificationsHref}
-                className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 text-muted-foreground hover:text-foreground"
-                aria-label="Уведомления"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M18 8a6 6 0 10-12 0c0 7-3 7-3 7h18s-3 0-3-7" />
-                  <path d="M13.73 21a2 2 0 01-3.46 0" />
-                </svg>
-                {unreadCount > 0 ? (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] rounded-full bg-primary px-1.5 text-[10px] leading-5 text-primary-foreground">
-                    {unreadCount}
-                  </span>
-                ) : null}
-              </Link>
+              {/* Real‑time notification bell */}
+              <NotificationBell href={notificationsHref} initialCount={unreadCount} />
               <div className="hidden md:flex items-center gap-2">
                 <Badge variant="soft">
                   {user.role === "BRAND" ? "Бренд" : user.role === "CREATOR" ? "Креатор" : "Админ"}
