@@ -60,14 +60,14 @@ export function NotificationBell({ href = "/dashboard/notifications", className,
     <Link
       href={href}
       className={cn(
-        "relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 text-muted-foreground transition-colors duration-200 hover:text-foreground",
+        "relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white/70 transition-colors duration-200 hover:bg-white/15 hover:text-white",
         className,
       )}
       aria-label="Уведомления"
     >
       <svg
         viewBox="0 0 24 24"
-        className="h-4 w-4"
+        className="h-5 w-5"
         fill="none"
         stroke="currentColor"
         strokeWidth="2"
@@ -79,7 +79,7 @@ export function NotificationBell({ href = "/dashboard/notifications", className,
         <path d="M13.73 21a2 2 0 01-3.46 0" />
       </svg>
       {count > 0 ? (
-        <span className="absolute -top-1 -right-1 min-w-[18px] rounded-full bg-primary px-1.5 text-[10px] leading-5 text-primary-foreground">
+        <span className="absolute -top-1 -right-1 min-w-[18px] rounded-full bg-primary/80 px-1.5 text-[10px] leading-5 text-primary-foreground">
           {count}
         </span>
       ) : null}

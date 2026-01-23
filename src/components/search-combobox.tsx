@@ -104,7 +104,7 @@ export function SearchCombobox({ placeholder = "Поиск", className }: Search
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute z-10 mt-2 w-full rounded-xl border border-border/40 bg-background/80 backdrop-blur shadow-elevated"
+            className="absolute z-10 mt-2 w-full rounded-2xl border border-white/15 bg-white/7 backdrop-blur-lg shadow-[0_4px_12px_rgba(0,0,0,0.5)] text-white/85"
           >
             {loading && results.length === 0 ? (
               <li className="px-4 py-3 text-sm text-muted-foreground">Ищем…</li>
@@ -113,7 +113,7 @@ export function SearchCombobox({ placeholder = "Поиск", className }: Search
                 <li key={index} onClick={() => setOpen(false)}>
                   <Link
                     href={item.href}
-                    className="flex items-center gap-2 px-4 py-3 text-sm text-foreground hover:bg-muted/50"
+                    className="flex items-center gap-2 px-4 py-3 text-sm text-white/85 hover:bg-white/10"
                   >
                     <span
                       className={cn(

@@ -18,7 +18,7 @@ export async function GET() {
       count = await prisma.notification.count({
         where: { userId: user.id, isRead: false },
       });
-    } catch {
+    } catch (error) {
       // swallow errors and return zero on failure to avoid breaking the UI
       count = 0;
     }

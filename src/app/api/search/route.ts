@@ -22,30 +22,29 @@ export async function GET(request: Request) {
 
   const q = query.trim();
 
-  // Perform case‑insensitive search against creator profiles and published jobs.
+  // Perform case‑insensitive search against creator profiles and open jobs.
   // We choose a simple `contains` filter for demonstration. In a real app
   // you may want to use full‑text search or trigram indexes.
   const [creators, jobs] = await Promise.all([
-    prisma.creatorProfile.findMany({
+    prisma.user.findMany({
       where: {
-        isPublic: true,
-        verificationStatus: "VERIFIED",
+        role: "CREATOR",
         OR: [
-          { user: { name: { contains: q, mode: "insensitive" } } },
-          { bio: { contains: q, mode: "insensitive" } },
+          { name: { contains: q, mode: "insensitive" } },
+          { username: { contains: q, mode: "insensitive" } },
         ],
       },
       select: {
         id: true,
-        user: { select: { name: true } },
+        name: true,
+        username: true,
       },
       take: 5,
     }),
     prisma.job.findMany({
       where: {
         title: { contains: q, mode: "insensitive" },
-        status: "PUBLISHED",
-        moderationStatus: "APPROVED",
+        status: "OPEN",
       },
       select: {
         id: true,
@@ -57,8 +56,8 @@ export async function GET(request: Request) {
 
   const creatorResults = creators.map((creator) => ({
     type: "creator" as const,
-    label: creator.user?.name || "Креатор",
-    href: `/creators/${creator.id}`,
+    label: creator.name || creator.username,
+    href: `/creators/${creator.username || creator.id}`,
   }));
   const jobResults = jobs.map((job) => ({
     type: "job" as const,

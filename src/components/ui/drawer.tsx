@@ -4,6 +4,11 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
+// This drawer component is adapted from the original codebase to blend with the
+// glassmorphic aesthetic. It manages focus trapping, accessibility and
+// backdrop interactions. The surface utilises translucent backgrounds and
+// blurred panels instead of opaque overlays.
+
 type DrawerContextValue = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -78,7 +83,7 @@ export function DrawerTrigger({ asChild = false, children }: DrawerTriggerProps)
 }
 
 type DrawerContentProps = React.HTMLAttributes<HTMLDivElement> & {
-  side?: "bottom" | "right";
+  side?: "bottom" | "right" | "left";
   disableOutsideClick?: boolean;
 };
 
@@ -126,23 +131,27 @@ export function DrawerContent({
   const panelClasses =
     side === "right"
       ? "right-0 top-0 h-full w-[min(420px,90vw)]"
+      : side === "left"
+      ? "left-0 top-0 h-full w-[min(420px,90vw)]"
       : "left-0 bottom-0 w-full h-[min(70vh,560px)]";
 
   return createPortal(
     <div className="fixed inset-0 z-50">
+      {/* Dimmed backdrop */}
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={() => {
           if (!disableOutsideClick) onOpenChange(false);
         }}
       />
+      {/* Sliding panel */}
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby={ctx.hasTitle ? ctx.titleId : undefined}
         aria-describedby={ctx.hasDescription ? ctx.descriptionId : undefined}
         className={cn(
-          "absolute rounded-t-lg border border-border-soft bg-overlay text-overlay-foreground shadow-elevated",
+          "absolute overflow-hidden rounded-t-2xl border border-white/15 bg-white/7 backdrop-blur-lg text-white/90 shadow-[0_4px_20px_rgba(0,0,0,0.6)]",
           "motion-reduce:transition-none",
           panelClasses,
           className,
@@ -157,32 +166,30 @@ export function DrawerContent({
 }
 
 export function DrawerHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("space-y-1 border-b border-border-soft p-4", className)} {...props} />;
+  const ctx = React.useContext(DrawerContext);
+  if (ctx) ctx.setHasTitle(true);
+  return <div className={cn("space-y-1 border-b border-white/15 p-4", className)} {...props} />;
 }
 
 export function DrawerTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   const ctx = React.useContext(DrawerContext);
+  if (!ctx) throw new Error("DrawerTitle must be used within <Drawer>");
   React.useEffect(() => {
-    ctx?.setHasTitle(true);
-    return () => ctx?.setHasTitle(false);
+    ctx.setHasTitle(true);
+    return () => ctx.setHasTitle(false);
   }, [ctx]);
-
-  return <h2 id={ctx?.titleId} className={cn("text-ui-base font-ui-semibold", className)} {...props} />;
+  return <h2 id={ctx.titleId} className={cn("text-base font-semibold", className)} {...props} />;
 }
 
 export function DrawerDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
   const ctx = React.useContext(DrawerContext);
+  if (!ctx) throw new Error("DrawerDescription must be used within <Drawer>");
   React.useEffect(() => {
-    ctx?.setHasDescription(true);
-    return () => ctx?.setHasDescription(false);
+    ctx.setHasDescription(true);
+    return () => ctx.setHasDescription(false);
   }, [ctx]);
-
   return (
-    <p
-      id={ctx?.descriptionId}
-      className={cn("text-ui-sm text-muted-foreground", className)}
-      {...props}
-    />
+    <p id={ctx.descriptionId} className={cn("text-sm text-white/70", className)} {...props} />
   );
 }
 
@@ -191,7 +198,7 @@ export function DrawerBody({ className, ...props }: React.HTMLAttributes<HTMLDiv
 }
 
 export function DrawerFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("border-t border-border-soft p-4", className)} {...props} />;
+  return <div className={cn("border-t border-white/15 p-4", className)} {...props} />;
 }
 
 export function DrawerClose({ asChild = false, children }: DrawerTriggerProps) {

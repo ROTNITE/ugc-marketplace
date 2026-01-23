@@ -87,8 +87,8 @@ export async function SiteHeader() {
   const notificationsHref = user?.role === "ADMIN" ? "/admin/notifications" : "/dashboard/notifications";
 
   return (
-    <header className="border-b border-border/60 bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/50">
-      <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between gap-3">
+    <header className="relative border-b border-white/15 bg-white/5 backdrop-blur-lg">
+      <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Link href="/" className="font-semibold tracking-tight">
             <span className="inline-flex items-center gap-2">
@@ -97,11 +97,11 @@ export async function SiteHeader() {
             </span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-1 text-sm text-muted-foreground">
+          <nav className="hidden md:flex items-center gap-1 text-sm text-white/70">
             {navLinks.map((item) => (
               <Link
                 key={item.href}
-                className="px-3 py-2 hover:text-foreground flex items-center gap-2"
+                className="px-3 py-2 flex items-center gap-2 hover:text-white transition-colors"
                 href={item.href}
               >
                 {item.label}
@@ -141,16 +141,26 @@ export async function SiteHeader() {
             </div>
           )}
 
+          {/*
+            Mobile drop‑down menu. In the glassmorphic theme it uses translucent
+            panels, subtle borders and smooth hover effects. The <details>
+            element is used for disclosure; the summary button takes the role
+            of the trigger. See `globals.css` for colour variables.
+          */}
           <details className="relative md:hidden">
-            <summary className="list-none cursor-pointer rounded-md border border-border/60 px-3 py-2 text-sm text-muted-foreground hover:text-foreground">
+            <summary
+              className="list-none cursor-pointer rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-white/70 backdrop-blur-md hover:bg-white/15 hover:text-white"
+            >
               Меню
             </summary>
-            <div className="absolute right-0 z-20 mt-2 w-64 rounded-lg border border-border/60 bg-background p-2 shadow-sm">
-              <nav className="flex flex-col gap-1 text-sm text-muted-foreground">
+            <div
+              className="absolute right-0 z-20 mt-2 w-64 space-y-2 rounded-2xl border border-white/15 bg-white/5 p-3 text-sm text-white/75 backdrop-blur-lg shadow-lg"
+            >
+              <nav className="flex flex-col gap-1">
                 {navLinks.map((item) => (
                   <Link
                     key={item.href}
-                    className="flex items-center justify-between rounded-md px-3 py-2 hover:bg-muted/50 hover:text-foreground"
+                    className="flex items-center justify-between rounded-xl px-3 py-2 transition-colors hover:bg-white/10 hover:text-white"
                     href={item.href}
                   >
                     <span>{item.label}</span>
@@ -160,13 +170,13 @@ export async function SiteHeader() {
                 {user ? (
                   <>
                     <Link
-                      className="rounded-md px-3 py-2 hover:bg-muted/50 hover:text-foreground"
+                      className="rounded-xl px-3 py-2 transition-colors hover:bg-white/10 hover:text-white"
                       href={notificationsHref}
                     >
                       Уведомления
                     </Link>
                     <Link
-                      className="rounded-md px-3 py-2 hover:bg-muted/50 hover:text-foreground"
+                      className="rounded-xl px-3 py-2 transition-colors hover:bg-white/10 hover:text-white"
                       href={dashboardHref}
                     >
                       {dashboardLabel}
@@ -175,13 +185,13 @@ export async function SiteHeader() {
                 ) : (
                   <>
                     <Link
-                      className="rounded-md px-3 py-2 hover:bg-muted/50 hover:text-foreground"
+                      className="rounded-xl px-3 py-2 transition-colors hover:bg-white/10 hover:text-white"
                       href="/login"
                     >
                       Войти
                     </Link>
                     <Link
-                      className="rounded-md px-3 py-2 hover:bg-muted/50 hover:text-foreground"
+                      className="rounded-xl px-3 py-2 transition-colors hover:bg-white/10 hover:text-white"
                       href="/register"
                     >
                       Регистрация
@@ -189,8 +199,8 @@ export async function SiteHeader() {
                   </>
                 )}
               </nav>
-              <div className="border-t border-border/60 pt-2">
-                <p className="px-3 pb-2 text-xs uppercase tracking-wide text-muted-foreground">Тема</p>
+              <div className="border-t border-white/15 pt-2">
+                <p className="px-3 pb-2 text-xs uppercase tracking-wide text-white/50">Тема</p>
                 <ThemeToggle className="w-full" />
               </div>
             </div>

@@ -1,18 +1,11 @@
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
-
 /**
- * Merge Tailwind class names safely.
+ * Utility functions for the UGC marketplace redesign.
+ *
+ * The cn function concatenates multiple class strings conditionally. It
+ * accepts any number of arguments, filters out falsy values and joins
+ * them with a space. This simple helper mirrors the behaviour of the
+ * popular clsx/cn helpers used in the original codebase.
  */
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-
-/**
- * Safe parsing for ints from search params.
- */
-export function toInt(value: string | undefined | null) {
-  if (!value) return undefined;
-  const n = Number.parseInt(value, 10);
-  return Number.isFinite(n) ? n : undefined;
+export function cn(...classes: (string | null | undefined | boolean)[]) {
+  return classes.filter(Boolean).join(" ");
 }
