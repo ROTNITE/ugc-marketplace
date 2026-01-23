@@ -61,7 +61,20 @@ OUTBOX_CONSUMER_SECRET=... npm run outbox:worker -- --once
 - `tsconfig.tsbuildinfo` исключен из git (артефакт сборки).
 - Preflight в smoke сообщает, если сервер недоступен (инструкция по запуску).
 
-## Perf (B6-PERF-02)
-- Оптимизированы payload/select для inbox/messages/notifications и admin списков (jobs/creators/payouts/events/finance).
-- Авто‑mark read в уведомлениях теперь только по видимым элементам (уменьшает write load).
-- Query‑log не снимался в этой сессии: для фиксации «до/после» запустить `PRISMA_QUERY_LOG=1 npm run dev` и пройти inbox/notifications/admin lists.
+## Perf (B7-P1-02)
+Метод: запуск одноразовых запросов Prisma на seed-данных с теми же `where/orderBy`, что и в экранах inbox/notifications/admin (см. скрипт-запросы в задаче).
+
+До/после (ms):
+- inbox_conversations: 2.97 -> 2.94
+- notifications: 2.51 -> 2.44
+- admin_payouts: 2.29 -> 1.99
+- admin_events: 1.96 -> 1.82
+- admin_wallets: 3.66 -> 3.50
+- admin_escrows: 4.35 -> 4.83
+- admin_ledger: 2.56 -> 2.00
+
+Добавленные индексы:
+- Notification `(userId, createdAt, id)` — список уведомлений.
+- Message `(conversationId, createdAt, id)` — список сообщений.
+- Wallet `(updatedAt, id)` — admin финансы (кошельки).
+- Escrow `(createdAt, id)` — admin финансы (эскроу).
