@@ -54,7 +54,7 @@ export function TelegramBindingCard({ account, pendingRequest = null }: Props) {
       const res = await fetch("/api/telegram/bind/request", { method: "POST" });
       const data = await res.json().catch(() => null);
       if (!res.ok || data?.ok === false) {
-        if (data?.error?.code === "STALE_SESSION") {
+        if (data?.error?.code === "STALE_SESSION" || data?.error?.code === "SESSION_INVALID") {
           setStaleSession(true);
         }
         if (data?.requestId) {
@@ -82,7 +82,7 @@ export function TelegramBindingCard({ account, pendingRequest = null }: Props) {
       const res = await fetch("/api/telegram/bind/unlink", { method: "POST" });
       const data = await res.json().catch(() => null);
       if (!res.ok || data?.ok === false) {
-        if (data?.error?.code === "STALE_SESSION") {
+        if (data?.error?.code === "STALE_SESSION" || data?.error?.code === "SESSION_INVALID") {
           setStaleSession(true);
         }
         if (data?.requestId) {

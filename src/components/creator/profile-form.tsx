@@ -355,6 +355,11 @@ export function CreatorProfileForm({ initialProfile }: CreatorProfileFormProps) 
             Бренды не увидят ваш профиль в каталоге, пока вы не включите доступ.
           </Alert>
         ) : null}
+        {isPublic && verificationStatus !== "VERIFIED" ? (
+          <Alert variant="warning" title="Нужна верификация">
+            Профиль появится в каталоге только после верификации. Сейчас бренды не видят его в каталоге.
+          </Alert>
+        ) : null}
       </div>
 
       <Button onClick={saveProfile} disabled={isSaving}>

@@ -5,6 +5,7 @@ import { createNotification } from "@/lib/notifications";
 import { requireAdmin } from "@/lib/authz";
 import { API_ERROR_CODES } from "@/lib/api/errors";
 import { ensureRequestId, fail, mapAuthError, ok } from "@/lib/api/contract";
+import { ledgerReference } from "@/lib/payments/references";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const requestId = ensureRequestId(req);
@@ -43,7 +44,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           currency: payout.currency,
           toUserId: payout.userId,
           payoutRequestId: payout.id,
-          reference: `PAYOUT_APPROVE:${payout.id}`,
+          reference: ledgerReference.payoutApprove(payout.id),
         },
       });
     });

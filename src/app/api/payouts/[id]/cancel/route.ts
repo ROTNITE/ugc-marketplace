@@ -4,6 +4,7 @@ import { emitEvent } from "@/lib/outbox";
 import { API_ERROR_CODES } from "@/lib/api/errors";
 import { ensureRequestId, fail, ok, mapAuthError } from "@/lib/api/contract";
 import { requireUser } from "@/lib/authz";
+import { ledgerReference } from "@/lib/payments/references";
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const requestId = ensureRequestId(_req);
@@ -52,7 +53,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
           currency: payout.currency,
           toUserId: user.id,
           payoutRequestId: payout.id,
-          reference: `PAYOUT_CANCEL:${payout.id}`,
+          reference: ledgerReference.payoutCancel(payout.id),
         },
       });
     });

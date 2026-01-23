@@ -168,7 +168,9 @@ export function CreatorFilters({ canShowUnverified }: { canShowUnverified: boole
             Только верифицированные
           </label>
         ) : (
-          <div className="text-xs text-muted-foreground">Показываются только верифицированные креаторы.</div>
+          <div className="text-xs text-muted-foreground">
+            Показываются только публичные и верифицированные креаторы.
+          </div>
         )}
         <div className="text-xs text-muted-foreground">
           Цены в {CURRENCY_LABELS[CURRENCIES[0]] ?? "RUB"} если указаны.

@@ -23,6 +23,7 @@ export function InviteCreatorDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [profileCta, setProfileCta] = useState<string | null>(null);
 
   async function send() {
@@ -33,6 +34,7 @@ export function InviteCreatorDialog({
     setIsLoading(true);
     setError(null);
     setSuccess(null);
+    setConversationId(null);
     setProfileCta(null);
     try {
       const res = await fetch("/api/invitations", {
@@ -62,6 +64,7 @@ export function InviteCreatorDialog({
       const payload = data?.data ?? data;
       setSuccess("Приглашение отправлено.");
       if (payload?.conversationId) {
+        setConversationId(payload.conversationId);
         router.prefetch(`/dashboard/inbox/${payload.conversationId}`);
       }
     } catch {
@@ -107,7 +110,14 @@ export function InviteCreatorDialog({
           ) : null}
           {success ? (
             <Alert variant="success" title="Готово">
-              {success}
+              <div className="space-y-2">
+                <p>{success}</p>
+                {conversationId ? (
+                  <a className="text-primary hover:underline text-sm" href={`/dashboard/inbox/${conversationId}`}>
+                    Открыть чат
+                  </a>
+                ) : null}
+              </div>
             </Alert>
           ) : null}
 

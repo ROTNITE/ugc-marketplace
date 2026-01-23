@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { emitEvent } from "@/lib/outbox";
 import { getBrandIds, requireRole } from "@/lib/authz";
 import { getBrandCompleteness } from "@/lib/profiles/completeness";
+import { createNotification } from "@/lib/notifications";
 import { logApiError } from "@/lib/request-id";
 import { API_ERROR_CODES } from "@/lib/api/errors";
 import { ensureRequestId, fail, ok, parseJson, mapAuthError } from "@/lib/api/contract";
@@ -81,7 +82,7 @@ export async function POST(req: Request) {
         userId: true,
         verificationStatus: true,
         isPublic: true,
-        user: { select: { id: true, role: true } },
+        user: { select: { id: true, role: true, name: true } },
       },
     });
 
@@ -192,6 +193,19 @@ export async function POST(req: Request) {
       brandId: user.id,
       invitationId: result.invitation.id,
       conversationId: result.conversationId,
+    });
+
+    await createNotification(creatorProfile.userId, {
+      type: "INVITATION_SENT",
+      title: "Новое приглашение",
+      body: job.title,
+      href: "/dashboard/invitations",
+    });
+    await createNotification(user.id, {
+      type: "INVITATION_SENT",
+      title: "Приглашение отправлено",
+      body: creatorProfile.user.name ? `Креатор: ${creatorProfile.user.name}` : job.title,
+      href: `/dashboard/inbox/${result.conversationId}`,
     });
 
     return ok({ invitationId: result.invitation.id, conversationId: result.conversationId }, requestId);

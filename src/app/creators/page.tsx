@@ -95,7 +95,7 @@ export default async function CreatorsPage({
     <Container className="py-10 space-y-8">
       <PageHeader
         title="Креаторы"
-        description="Подберите исполнителя по нишам, платформам и бюджету. По умолчанию показываем только публичные и верифицированные профили."
+        description="Подберите исполнителя по нишам, платформам и бюджету. В каталоге — только публичные и верифицированные профили."
       />
 
       <CreatorFilters canShowUnverified={isAdmin} />

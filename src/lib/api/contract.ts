@@ -91,7 +91,7 @@ export function mapAuthError(error: unknown, requestId: string) {
   if (error.message === "STALE_SESSION") {
     return fail(
       401,
-      API_ERROR_CODES.STALE_SESSION,
+      API_ERROR_CODES.SESSION_INVALID,
       "Сессия устарела. Выйдите и войдите заново.",
       requestId,
       { action: "SIGN_IN" },

@@ -5,6 +5,7 @@ import { createNotification } from "@/lib/notifications";
 import { requireBrandOwnerOfJob, requireUser } from "@/lib/authz";
 import { API_ERROR_CODES } from "@/lib/api/errors";
 import { ensureRequestId, fail, mapAuthError, ok } from "@/lib/api/contract";
+import { ledgerReference } from "@/lib/payments/references";
 
 export async function POST(req: Request, { params }: { params: { jobId: string } }) {
   const requestId = ensureRequestId(req);
@@ -72,7 +73,7 @@ export async function POST(req: Request, { params }: { params: { jobId: string }
           currency: current.currency,
           fromUserId: job.brandId,
           escrowId: current.id,
-          reference: `ESCROW_FUND:${current.id}`,
+          reference: ledgerReference.escrowFund(current.id),
         },
       });
 
@@ -80,7 +81,9 @@ export async function POST(req: Request, { params }: { params: { jobId: string }
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return fail(409, API_ERROR_CODES.CONFLICT, "Операция уже была выполнена.", requestId);
+      return fail(409, API_ERROR_CODES.CONFLICT, "Операция уже была выполнена.", requestId, {
+        code: "LEDGER_DUPLICATE",
+      });
     }
     return fail(500, API_ERROR_CODES.INVARIANT_VIOLATION, "Ошибка сервера.", requestId);
   }
@@ -96,6 +99,7 @@ export async function POST(req: Request, { params }: { params: { jobId: string }
 
   await emitEvent("ESCROW_FUNDED", {
     jobId: job.id,
+    creatorId: job.activeCreatorId ?? undefined,
     escrowId: updatedEscrow.id,
     amountCents: updatedEscrow.amountCents,
   });

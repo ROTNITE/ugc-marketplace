@@ -5,7 +5,7 @@ import { createNotification } from "@/lib/notifications";
 import { getCreatorIds, requireRole } from "@/lib/authz";
 import { getCreatorCompleteness } from "@/lib/profiles/completeness";
 import { API_ERROR_CODES } from "@/lib/api/errors";
-import { ensureRequestId, fail, ok, parseJson, mapAuthError } from "@/lib/api/contract";
+import { ensureRequestId, fail, ok, mapAuthError } from "@/lib/api/contract";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const requestId = ensureRequestId(req);
@@ -65,8 +65,25 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       );
     }
 
-    const parsed = await parseJson(req, jobApplySchema, requestId);
-    if ("errorResponse" in parsed) return parsed.errorResponse;
+    const rawBody = await req.text();
+    if (!rawBody.trim()) {
+      return fail(400, API_ERROR_CODES.VALIDATION_ERROR, "Требуется тело запроса.", requestId);
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return fail(400, API_ERROR_CODES.VALIDATION_ERROR, "Некорректный JSON.", requestId);
+    }
+    const parsed = jobApplySchema.safeParse(body);
+    if (!parsed.success) {
+      return fail(400, API_ERROR_CODES.VALIDATION_ERROR, "Некорректные данные.", requestId, parsed.error.flatten());
+    }
+    const normalizedMessage = parsed.data.message?.trim() ?? "";
+    const hasPrice = typeof parsed.data.priceQuote === "number";
+    if (!normalizedMessage && !hasPrice) {
+      return fail(400, API_ERROR_CODES.VALIDATION_ERROR, "Требуется тело запроса.", requestId);
+    }
 
     const creatorIds = getCreatorIds(user);
     const existing = await prisma.application.findFirst({

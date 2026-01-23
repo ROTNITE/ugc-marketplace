@@ -2,6 +2,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { computeCommission, computeCreatorPayout, convertCents } from "@/lib/payments";
+import { ledgerReference } from "@/lib/payments/references";
+import { log } from "@/lib/logger";
 
 export type EscrowActionSource = "CANCEL" | "DISPUTE" | "REVIEW";
 
@@ -38,7 +40,11 @@ async function safeCreateOutbox(
   try {
     await tx.outboxEvent.create({ data: { type, payload } });
   } catch (error) {
-    console.error("[payments] outbox insert failed", { type, error });
+    log("error", "payments", {
+      message: "outbox insert failed",
+      type,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -49,7 +55,11 @@ async function safeCreateNotification(
   try {
     await tx.notification.create({ data });
   } catch (error) {
-    console.error("[payments] notification insert failed", { type: data.type, error });
+    log("error", "payments", {
+      message: "notification insert failed",
+      type: data.type,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -94,7 +104,7 @@ export async function releaseEscrowForJob({
     if (escrow.status !== "FUNDED") return { status: "unfunded", escrowId: escrow.id };
     if (!job.activeCreatorId) return { status: "no_active_creator", escrowId: escrow.id };
 
-    const releaseReference = `ESCROW_RELEASE:${escrow.id}`;
+    const releaseReference = ledgerReference.escrowRelease(escrow.id);
     const existingRelease = await client.ledgerEntry.findFirst({
       where: { reference: releaseReference },
       select: { id: true },
@@ -135,40 +145,47 @@ export async function releaseEscrowForJob({
       return { status: "unfunded", escrowId: escrow.id };
     }
 
-    if (commissionCents > 0) {
-      await client.ledgerEntry.create({
-        data: {
-          type: "COMMISSION_TAKEN",
-          amountCents: commissionCents,
-          currency: escrow.currency,
-          fromUserId: job.brandId,
-          toUserId: adminUser?.id ?? null,
-          escrowId: escrow.id,
-          reference: `ESCROW_COMMISSION:${escrow.id}`,
-          metadata: { source, actorUserId },
-        },
-      });
-    }
+    try {
+      if (commissionCents > 0) {
+        await client.ledgerEntry.create({
+          data: {
+            type: "COMMISSION_TAKEN",
+            amountCents: commissionCents,
+            currency: escrow.currency,
+            fromUserId: job.brandId,
+            toUserId: adminUser?.id ?? null,
+            escrowId: escrow.id,
+            reference: ledgerReference.escrowCommission(escrow.id),
+            metadata: { source, actorUserId },
+          },
+        });
+      }
 
-    if (payoutCents > 0) {
-      await client.ledgerEntry.create({
-        data: {
-          type: "ESCROW_RELEASED",
-          amountCents: payoutCents,
-          currency: payoutCurrency,
-          fromUserId: job.brandId,
-          toUserId: job.activeCreatorId,
-          escrowId: escrow.id,
-          reference: releaseReference,
-          metadata: { source, actorUserId },
-        },
-      });
+      if (payoutCents > 0) {
+        await client.ledgerEntry.create({
+          data: {
+            type: "ESCROW_RELEASED",
+            amountCents: payoutCents,
+            currency: payoutCurrency,
+            fromUserId: job.brandId,
+            toUserId: job.activeCreatorId,
+            escrowId: escrow.id,
+            reference: releaseReference,
+            metadata: { source, actorUserId },
+          },
+        });
 
-      await client.wallet.upsert({
-        where: { userId: job.activeCreatorId },
-        update: { balanceCents: { increment: payoutCents }, currency: payoutCurrency },
-        create: { userId: job.activeCreatorId, balanceCents: payoutCents, currency: payoutCurrency },
-      });
+        await client.wallet.upsert({
+          where: { userId: job.activeCreatorId },
+          update: { balanceCents: { increment: payoutCents }, currency: payoutCurrency },
+          create: { userId: job.activeCreatorId, balanceCents: payoutCents, currency: payoutCurrency },
+        });
+      }
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        return { status: "already_released", escrowId: escrow.id };
+      }
+      throw error;
     }
 
     await safeCreateOutbox(client, "ESCROW_RELEASED", {
@@ -243,7 +260,7 @@ export async function refundEscrowForJob({
     if (escrow.status === "RELEASED") return { status: "released", escrowId: escrow.id };
     if (escrow.status !== "FUNDED") return { status: "unfunded", escrowId: escrow.id };
 
-    const refundReference = `ESCROW_REFUND:${escrow.id}`;
+    const refundReference = ledgerReference.escrowRefund(escrow.id);
     const existingRefund = await client.ledgerEntry.findFirst({
       where: { reference: refundReference },
       select: { id: true },
@@ -269,18 +286,27 @@ export async function refundEscrowForJob({
       return { status: "unfunded", escrowId: escrow.id };
     }
 
-    const ledger = await client.ledgerEntry.create({
-      data: {
-        type: "ESCROW_REFUNDED",
-        amountCents: escrow.amountCents,
-        currency: escrow.currency,
-        toUserId: job.brandId,
-        escrowId: escrow.id,
-        reference: refundReference,
-        metadata: { source, actorUserId, reason: reason ?? null },
-      },
-      select: { id: true },
-    });
+    let ledgerId: string | null = null;
+    try {
+      const ledger = await client.ledgerEntry.create({
+        data: {
+          type: "ESCROW_REFUNDED",
+          amountCents: escrow.amountCents,
+          currency: escrow.currency,
+          toUserId: job.brandId,
+          escrowId: escrow.id,
+          reference: refundReference,
+          metadata: { source, actorUserId, reason: reason ?? null },
+        },
+        select: { id: true },
+      });
+      ledgerId = ledger.id;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        return { status: "already_refunded", escrowId: escrow.id };
+      }
+      throw error;
+    }
 
     await safeCreateOutbox(client, "ESCROW_REFUNDED", {
       jobId: job.id,
@@ -289,7 +315,7 @@ export async function refundEscrowForJob({
       currency: escrow.currency,
       source,
       actorUserId,
-      ledgerId: ledger.id,
+      ledgerId,
     });
 
     await safeCreateNotification(client, {
@@ -305,7 +331,7 @@ export async function refundEscrowForJob({
       escrowId: escrow.id,
       amountCents: escrow.amountCents,
       currency: escrow.currency,
-      ledgerId: ledger.id,
+      ledgerId,
     };
   };
 

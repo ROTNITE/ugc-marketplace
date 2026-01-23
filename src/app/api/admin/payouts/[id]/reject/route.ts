@@ -6,6 +6,7 @@ import { createNotification } from "@/lib/notifications";
 import { requireAdmin } from "@/lib/authz";
 import { API_ERROR_CODES } from "@/lib/api/errors";
 import { ensureRequestId, fail, mapAuthError, ok, parseJson } from "@/lib/api/contract";
+import { ledgerReference } from "@/lib/payments/references";
 
 const schema = z.object({
   reason: z.string().min(2).max(500),
@@ -57,7 +58,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           currency: payout.currency,
           toUserId: payout.userId,
           payoutRequestId: payout.id,
-          reference: `PAYOUT_REJECT:${payout.id}`,
+          reference: ledgerReference.payoutReject(payout.id),
         },
       });
     });

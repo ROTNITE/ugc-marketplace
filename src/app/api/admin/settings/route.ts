@@ -1,12 +1,11 @@
-import { getServerSession } from "next-auth/next";
 import { z } from "zod";
 import { Currency } from "@prisma/client";
 import { API_ERROR_CODES } from "@/lib/api/errors";
 import { ensureRequestId, fail, ok, parseJson } from "@/lib/api/contract";
 import { prisma } from "@/lib/prisma";
 import { logApiError } from "@/lib/request-id";
-import { authOptions } from "@/lib/auth";
 import { mapAuthError } from "@/lib/api/contract";
+import { requireAdmin } from "@/lib/authz";
 
 const schema = z.object({
   commissionBps: z.preprocess(
@@ -19,12 +18,7 @@ const schema = z.object({
 export async function POST(req: Request) {
   const requestId = ensureRequestId(req);
   try {
-    const session = await getServerSession(authOptions);
-    const user = session?.user;
-    if (!user) return fail(401, API_ERROR_CODES.UNAUTHORIZED, "Требуется авторизация.", requestId);
-    if (user.role !== "ADMIN") {
-      return fail(403, API_ERROR_CODES.FORBIDDEN, "Недостаточно прав.", requestId);
-    }
+    await requireAdmin();
 
     const parsed = await parseJson(req, schema, requestId);
     if ("errorResponse" in parsed) return parsed.errorResponse;

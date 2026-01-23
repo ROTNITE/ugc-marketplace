@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { emitEvent } from "@/lib/outbox";
 import { getCreatorIds } from "@/lib/authz";
+import { createNotification } from "@/lib/notifications";
 import { logApiError } from "@/lib/request-id";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
@@ -22,7 +23,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     }
     const invitation = await prisma.invitation.findUnique({
       where: { id: params.id },
-      select: { id: true, status: true, jobId: true, creatorId: true },
+      select: { id: true, status: true, jobId: true, creatorId: true, brandId: true },
     });
 
     const creatorIds = getCreatorIds(user);
@@ -45,6 +46,17 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       invitationId: invitation.id,
       jobId: invitation.jobId,
       creatorId: invitation.creatorId,
+    });
+
+    const job = await prisma.job.findUnique({
+      where: { id: invitation.jobId },
+      select: { title: true },
+    });
+    await createNotification(invitation.brandId, {
+      type: "INVITATION_DECLINED",
+      title: "Приглашение отклонено",
+      body: job?.title ?? "Заказ",
+      href: "/dashboard/jobs",
     });
 
     return ok({ declined: true }, requestId);

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { createNotification } from "@/lib/notifications";
 import { emitEvent } from "@/lib/outbox";
 import { logApiError } from "@/lib/request-id";
+import { ledgerReference } from "@/lib/payments/references";
 
 const schema = z.object({
   userId: z.string().uuid(),
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
           currency,
           toUserId: amountCents > 0 ? userId : null,
           fromUserId: amountCents < 0 ? userId : null,
-          reference: `FINANCE_ADJUST:${requestId}`,
+          reference: ledgerReference.financeAdjust(requestId),
           metadata: { reason, signedAmount: amountCents },
         },
         select: { id: true, createdAt: true },

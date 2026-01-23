@@ -78,8 +78,7 @@ export default async function CreatorProfilePage({ params }: { params: { id: str
     reviewStats._count._all > 0
       ? `${reviewStats._avg.rating?.toFixed(1) ?? "-"} (${reviewStats._count._all})`
       : "-";
-  const verificationBadge =
-    creator.verificationStatus === "VERIFIED" ? getVerificationStatusBadge(creator.verificationStatus) : null;
+  const verificationBadge = getVerificationStatusBadge(creator.verificationStatus);
 
   return (
     <Container size="lg" className="py-10 space-y-6">
@@ -92,11 +91,9 @@ export default async function CreatorProfilePage({ params }: { params: { id: str
           </Link>
         }
         actions={
-          verificationBadge ? (
-            <Badge variant={verificationBadge.variant} tone={verificationBadge.tone}>
-              {verificationBadge.label}
-            </Badge>
-          ) : null
+          <Badge variant={verificationBadge.variant} tone={verificationBadge.tone}>
+            {verificationBadge.label}
+          </Badge>
         }
       />
 

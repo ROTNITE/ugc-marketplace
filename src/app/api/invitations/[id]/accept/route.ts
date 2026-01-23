@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { emitEvent } from "@/lib/outbox";
 import { getCreatorIds } from "@/lib/authz";
 import { getCreatorCompleteness } from "@/lib/profiles/completeness";
+import { createNotification } from "@/lib/notifications";
 import { logApiError } from "@/lib/request-id";
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
@@ -82,7 +83,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     const job = await prisma.job.findUnique({
       where: { id: invitation.jobId },
-      select: { id: true, status: true, moderationStatus: true },
+      select: { id: true, status: true, moderationStatus: true, title: true },
     });
     if (!job || job.status !== "PUBLISHED" || job.moderationStatus === "REJECTED") {
       return fail(409, API_ERROR_CODES.CONFLICT, "Заказ недоступен.", requestId, {
@@ -119,6 +120,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       jobId: invitation.jobId,
       creatorId: invitation.creatorId,
       applicationId: result.applicationId,
+    });
+
+    await createNotification(invitation.brandId, {
+      type: "INVITATION_ACCEPTED",
+      title: "Приглашение принято",
+      body: job.title,
+      href: "/dashboard/jobs",
     });
 
     return ok({ applicationId: result.applicationId }, requestId);

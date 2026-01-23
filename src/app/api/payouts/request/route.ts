@@ -7,6 +7,7 @@ import { getPlatformSettings } from "@/lib/platform-settings";
 import { API_ERROR_CODES } from "@/lib/api/errors";
 import { ensureRequestId, fail, ok, parseJson, mapAuthError } from "@/lib/api/contract";
 import { requireUser } from "@/lib/authz";
+import { ledgerReference } from "@/lib/payments/references";
 
 export async function POST(req: Request) {
   const requestId = ensureRequestId(req);
@@ -79,7 +80,7 @@ export async function POST(req: Request) {
           currency: wallet.currency,
           fromUserId: user.id,
           payoutRequestId: payout.id,
-          reference: `PAYOUT_REQUEST:${payout.id}`,
+          reference: ledgerReference.payoutRequest(payout.id),
         },
       });
 

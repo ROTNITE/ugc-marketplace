@@ -3,6 +3,7 @@ import { ensureRequestId, fail, mapAuthError, ok } from "@/lib/api/contract";
 import { requireRole } from "@/lib/authz";
 import { prisma } from "@/lib/prisma";
 import { isCreatorOwner } from "@/lib/authz";
+import { createNotification } from "@/lib/notifications";
 import { logApiError } from "@/lib/request-id";
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
@@ -31,6 +32,19 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       where: { id: application.id },
       data: { status: "WITHDRAWN" },
     });
+
+    const job = await prisma.job.findUnique({
+      where: { id: application.jobId },
+      select: { title: true, brandId: true },
+    });
+    if (job?.brandId) {
+      await createNotification(job.brandId, {
+        type: "APPLICATION_WITHDRAWN",
+        title: "Отклик отозван",
+        body: job.title,
+        href: `/dashboard/jobs/${application.jobId}/applications`,
+      });
+    }
 
     return ok({ application: updated }, requestId);
   } catch (error) {

@@ -55,6 +55,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     await emitEvent("SUBMISSION_SUBMITTED", {
       jobId: job.id,
+      brandId: job.brandId,
       submissionId: submission.id,
       version: submission.version,
     });

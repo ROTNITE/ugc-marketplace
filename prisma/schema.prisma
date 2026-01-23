@@ -375,6 +375,7 @@ model Notification {
 
   @@index([userId, isRead])
   @@index([userId, isRead, createdAt])
+  @@index([userId, createdAt, id])
   @@index([createdAt])
 }
 
@@ -394,6 +395,8 @@ model Wallet {
   currency     Currency @default(RUB)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  @@index([updatedAt, id])
 }
 
 model Job {
@@ -570,6 +573,7 @@ model Escrow {
   @@index([brandId])
   @@index([creatorId])
   @@index([status])
+  @@index([createdAt, id])
 }
 
 model LedgerEntry {
@@ -585,7 +589,7 @@ model LedgerEntry {
   escrow       Escrow? @relation(fields: [escrowId], references: [id], onDelete: SetNull)
   payoutRequestId String? @db.Uuid
   payoutRequest PayoutRequest? @relation(fields: [payoutRequestId], references: [id], onDelete: SetNull)
-  reference    String?   @unique
+  reference    String   @unique
   metadata     Json?
   createdAt    DateTime @default(now())
 
@@ -715,6 +719,7 @@ model Message {
 
   @@index([conversationId])
   @@index([conversationId, createdAt])
+  @@index([conversationId, createdAt, id])
   @@index([createdAt])
   @@index([senderId])
 }
